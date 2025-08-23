@@ -172,7 +172,7 @@ if __name__ == "__main__":
     R = 1e-1*np.eye(8)
     
     # Simulator parameters
-    Tf = 10
+    Tf = 15
     floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
     floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R)
     floatbot_sim = FloatbotSim(floatbot_model, floatbot_mpc, x)

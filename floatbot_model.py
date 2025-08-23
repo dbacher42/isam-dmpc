@@ -79,17 +79,20 @@ class FloatbotModel():
         Izz = self.inertia
         Tmax = self.max_thrust
         rT = self.moment_arm
-        cg = cs.vertcat(self.cg[0], self.cg[1])
+        cx = self.cg[0] 
+        cy = self.cg[1]
         
         # Extract states
         q = cs.vertcat(x[2],x[3])
         R_BI = rot(q)
-        v_B = cs.vertcat(x[4], x[5])
+        vx = x[4]
+        vy = x[5]
         wz = x[6]
+        v = cs.vertcat(vx, vy)
+        V = cs.vertcat(v, wz)
         
         # Kinematics
-        v_I = R_BI@v_B
-        rdot = cs.vertcat(v_I[0], v_I[1])
+        rdot = R_BI@v
         Omg = cs.vertcat(
             cs.horzcat(0, -wz),
             cs.horzcat(wz, 0)
@@ -104,17 +107,18 @@ class FloatbotModel():
         )
         
         # Dynamics
-        cgX = cs.vertcat(-cg[1], cg[0])
         M = cs.vertcat(
-            cs.horzcat(m*np.eye(2), m*cgX),
-            cs.horzcat(m*cgX.T, Izz)
+            cs.horzcat(m, 0, -m*cy),
+            cs.horzcat(0, m, m*cx),
+            cs.horzcat(-m*cy, m*cy, Izz)
         )
         Minv = cs.inv(M)
         C = cs.vertcat(
-            -m*wz**2*cg,
-            0
+            cs.horzcat(0, -m*wz, -m*cx*wz),
+            cs.horzcat(m*wz, 0, -m*cy*wz),
+            cs.horzcat(0, 0, cx*vx+cy*vy)
         )
-        Vdot = Minv@(F-C)
+        Vdot = Minv@(F-C@V)
         
         return cs.vertcat(rdot, qdot, Vdot)
     
