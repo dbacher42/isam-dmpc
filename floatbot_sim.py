@@ -92,13 +92,12 @@ class FloatbotSim():
             ry = x_history[i,1]
             qw = x_history[i,2]
             qz = x_history[i,3]
-            RBI = rot([qw,qz])
-           
+            R_BI = rot([qw,qz])
             
             bot_patch.set_center((rx, ry))
-            dir_end = RBI@r_line
+            dir_end = R_BI@r_line
             dir_line.set_data([rx, rx+dir_end[0,0]], [ry, ry+dir_end[1,0]])
-            rcg_I = RBI@r_cg
+            rcg_I = R_BI@r_cg
             cg.set_data([rx+rcg_I[0,0]], [ry+rcg_I[1,0]])
             time_text.set_text(f'Time = {i*dt:.2f} s')
             
@@ -134,6 +133,7 @@ class FloatbotSim():
         
 if __name__ == "__main__":
     from floatbot_model import FloatbotModel
+    from floatbot_lqr import FloatbotLQR
     from floatbot_mpc import FloatbotMPC
     
     # Floatbot parameters
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     vx = 0
     vy = 0
     wz = 0
-    x = np.array([rx, ry, qw, qz, vx, vy, wz])
+    x0 = np.array([rx, ry, qw, qz, vx, vy, wz])
     
     # Commanded States
     rx_cmd = 1
@@ -165,19 +165,20 @@ if __name__ == "__main__":
     wz_cmd = 0
     x_cmd = np.array([rx_cmd, ry_cmd, qw_cmd, qz_cmd, vx_cmd, vy_cmd, wz_cmd])
     
-    # MPC parameters
+    # Controller parameters
     dt = .1
     H = 20
     Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
-    R = 1e-1*np.eye(8)
+    R = 1e-1*np.eye(4)
     
     # Simulator parameters
-    Tf = 15
+    Tf = 10
     floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
+    floatbot_lqr = FloatbotLQR(floatbot_model, x_cmd, dt, Q=Q, R=R)
     floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R)
-    floatbot_sim = FloatbotSim(floatbot_model, floatbot_mpc, x)
+    lqr_sim = FloatbotSim(floatbot_model, floatbot_lqr, x0)
+    mpc_sim = FloatbotSim(floatbot_model, floatbot_mpc, x0)
     
     # Run simulation
-    floatbot_sim.run(Tf)
-    
-    
+    lqr_sim.run(Tf)
+    mpc_sim.run(Tf)

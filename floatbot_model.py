@@ -22,24 +22,6 @@ class FloatbotModel():
         self.moment_arm = moment_arm # m
         self.cg = cg # m
         
-    def error(self, x, x_cmd):
-        '''
-        Compute the error between the current and commanded states
-        '''
-        r = cs.vertcat(x[0], x[1])
-        q = cs.vertcat(x[2], x[3])
-        v = cs.vertcat(x[4], x[5], x[6])
-        
-        r_cmd = cs.vertcat(x_cmd[0], x_cmd[1])
-        q_cmd = cs.vertcat(x_cmd[2], x_cmd[3])
-        v_cmd = cs.vertcat(x_cmd[4], x_cmd[5], x_cmd[6])
-        
-        re = r - r_cmd
-        qe = 1-(q.T@q_cmd)**2
-        ve = v - v_cmd
-        
-        return cs.vertcat(re, qe, ve)
-        
     def xdot(self, x, u):
         '''
         Computes the floatbot state derivatives
@@ -50,7 +32,8 @@ class FloatbotModel():
             x[0] : x position in the inertial frame (m)
             x[1] : y position in the inertial frame (m)
             x[2] : qw real quaternion component
-            x[3] : qz imaginiary quaternion component
+            x[3] : qz imaginiary quaternion component 
+            (note: normalize quaternion to prevent numerical errors)
             x[4] : x velocity in the body frame (m/s)
             x[5] : y velocity in the vody frame (m/s)
             x[6] : z axis rotational velocity (rad/s)
@@ -79,46 +62,49 @@ class FloatbotModel():
         Izz = self.inertia
         Tmax = self.max_thrust
         rT = self.moment_arm
-        cx = self.cg[0] 
-        cy = self.cg[1]
+        cg_B = self.cg
         
         # Extract states
         q = cs.vertcat(x[2],x[3])
         R_BI = rot(q)
+        cg_I = R_BI@cg_B
+        cx = cg_I[0]
+        cy = cg_I[1]
         vx = x[4]
         vy = x[5]
         wz = x[6]
         v = cs.vertcat(vx, vy)
-        V = cs.vertcat(v, wz)
         
         # Kinematics
-        rdot = R_BI@v
+        rdot = v
         Omg = cs.vertcat(
             cs.horzcat(0, -wz),
             cs.horzcat(wz, 0)
         )
         qdot = 1/2*Omg@q
         
-        # Compute body frame forces from input vector
-        F = cs.vertcat(
-            Tmax*(u[0] - u[1] - u[4] + u[5]),
-            Tmax*(u[2] - u[3] - u[6] + u[7]),
-            -rT*Tmax*(u[0] - u[1] + u[2] - u[3] + u[4] - u[5] + u[6] - u[7])
+        # Compute forces from input vector
+        f_B = cs.vertcat(
+            Tmax*(u[0] + u[2]),
+            Tmax*(u[1] + u[3])
         )
+        f_I = R_BI@f_B
+        t = -rT*Tmax*(u[0] + u[1] - u[2] - u[3])
+        F = cs.vertcat(f_I, t)
         
         # Dynamics
         M = cs.vertcat(
             cs.horzcat(m, 0, -m*cy),
             cs.horzcat(0, m, m*cx),
-            cs.horzcat(-m*cy, m*cy, Izz)
+            cs.horzcat(-m*cy, m*cx, Izz)
         )
         Minv = cs.inv(M)
         C = cs.vertcat(
-            cs.horzcat(0, -m*wz, -m*cx*wz),
-            cs.horzcat(m*wz, 0, -m*cy*wz),
-            cs.horzcat(0, 0, cx*vx+cy*vy)
+            -m*cx*wz**2,
+            -m*cy*wz**2,
+            0
         )
-        Vdot = Minv@(F-C@V)
+        Vdot = Minv@(F-C)
         
         return cs.vertcat(rdot, qdot, Vdot)
     
@@ -139,7 +125,7 @@ if __name__ == "__main__":
     qz = np.sin(tht/2)
     vx = 0
     vy = 0
-    omg = -1
+    omg = 1
     x = np.array([rx, ry, qw, qz, vx, vy, omg])
     
     # Control inputs
@@ -151,4 +137,12 @@ if __name__ == "__main__":
     for i in range(10):
         xdot = floatbot_model.xdot(x, u)
         x = x + .1*xdot
+        
+        # Normalize quaternion
+        qw = x[2]
+        qz = x[3]
+        q_mag = np.sqrt(qw**2+qz**2)
+        x[2] = qw/q_mag
+        x[3] = qz/q_mag
+        
         print(x)

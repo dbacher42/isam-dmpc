@@ -2,7 +2,7 @@ import numpy as np
 import casadi as cs
 
 class FloatbotMPC():
-    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(8), bounds={}):
+    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), bounds={}):
         '''
         Class defining the MPC controller for a floatbot
 
@@ -31,7 +31,7 @@ class FloatbotMPC():
         
         # Vector sizes
         self.nx = 7 # number of states
-        self.nu = 8 # number of control inputs
+        self.nu = 4 # number of control inputs
         self.nd = self.nx*(H+1) + self.nu*H # number of decision variables
         self.ng = self.nx*(H+1) # number of constraint equations
         
@@ -50,7 +50,7 @@ class FloatbotMPC():
         for i in range(H):
             for j in range(self.nu):
                 idx = self.nx*(H+1) + i*self.nu + j
-                self.lbx[idx] = 0
+                self.lbx[idx] = -1
                 self.ubx[idx] = 1
                 
         # Initialize constraint bounds at 0
@@ -66,7 +66,6 @@ class FloatbotMPC():
         '''
         # Extract parameters
         xdot = self.model.xdot
-        error = self.model.error
         X_cmd = cs.DM(self.x_cmd)
         dt = self.dt
         H = self.H
@@ -89,7 +88,7 @@ class FloatbotMPC():
         f = lambda x, u: x + dt*xdot(x,u) # Discretized dynamics using Euler integration
         
         for k in range(H):    
-            X_err = error(X[:,k], X_cmd)
+            X_err = self.error(X[:,k], X_cmd)
             
             # Cost function: penalize state errors plus control effort
             cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k]
@@ -99,7 +98,7 @@ class FloatbotMPC():
             g.append(X[:,k+1] - X_next)
             
         # Terminal cost on the final state
-        X_err = error(X[:,H], X_cmd) 
+        X_err = self.error(X[:,H], X_cmd) 
         cost += X_err.T@Q@X_err
         
         # Assemble decision vector
@@ -121,6 +120,24 @@ class FloatbotMPC():
         solver = cs.nlpsol('solver', 'ipopt', nlp_problem, opts)
         
         return solver
+    
+    def error(self, x, x_cmd):
+        '''
+        Compute the error between the current and commanded states
+        '''
+        r = cs.vertcat(x[0], x[1])
+        q = cs.vertcat(x[2], x[3])
+        v = cs.vertcat(x[4], x[5], x[6])
+        
+        r_cmd = cs.vertcat(x_cmd[0], x_cmd[1])
+        q_cmd = cs.vertcat(x_cmd[2], x_cmd[3])
+        v_cmd = cs.vertcat(x_cmd[4], x_cmd[5], x_cmd[6])
+        
+        re = r - r_cmd
+        qe = 1-(q.T@q_cmd)**2
+        ve = v - v_cmd
+        
+        return cs.vertcat(re, qe, ve)
     
     def solve(self, x):
         '''
@@ -195,8 +212,8 @@ if __name__ == "__main__":
     # MPC parameters
     dt = .1
     H = 20
-    Q = np.diag([5,5,8,1,1,1])
-    R = np.eye(8)
+    Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
+    R = 1e-1*np.eye(4)
     
     floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
     floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R)
