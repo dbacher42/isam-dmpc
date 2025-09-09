@@ -141,7 +141,7 @@ if __name__ == "__main__":
     inertia = .1594
     max_thrust = 1.5
     moment_arm = .12
-    cg = np.array([.068, 0])
+    cg = np.array([.168, 0])
     
     # States
     rx = 0
