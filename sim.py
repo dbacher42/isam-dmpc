@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import animation
+from matplotlib.animation import FuncAnimation
 
 class FloatbotSim():
     def __init__(self, model, controller, x0=np.array([0, 0, 1, 0, 0, 0, 0])):
@@ -69,6 +69,8 @@ class FloatbotSim():
             self.step(i)
             
         self.animate(-2, 2, -2, 2)
+        #self.plot_states()
+        #self.plot_thrust()
         
     def animate(self, lbx, ubx, lby, uby):
         def rot(q):
@@ -111,7 +113,7 @@ class FloatbotSim():
         dt = self.dt
         
         # Create figure and axis for the animation
-        fig, ax = plt.subplots(figsize=(8,4))
+        fig, ax = plt.subplots(figsize=(10,10))
         ax.set_xlim(lbx, ubx)
         ax.set_ylim(lby, uby)
         ax.set_aspect('equal')
@@ -129,19 +131,78 @@ class FloatbotSim():
         time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=12)
         
         # Create animation object
-        self.bot_animation = animation.FuncAnimation(fig, frame, frames=len(x_history), interval=dt*1000, blit=True)
+        self.bot_animation = FuncAnimation(fig, frame, frames=len(x_history), interval=dt*1000, blit=True)
+        
+    def plot_states(self):
+        '''
+        Plot State Response
+        '''
+        # Extract parameters
+        t_history = np.array(self.t_history)
+        x_history = np.array(self.x_history)
+        
+        # Plot states
+        fig, axs = plt.subplots(3,2)
+        axs[0,0].plot(t_history, x_history[:,0])
+        axs[0,0].set_xlabel('time (s)')
+        axs[0,0].set_ylabel('x position (m)')
+        axs[1,0].plot(t_history, x_history[:,1])
+        axs[1,0].set_xlabel('time (s)')
+        axs[1,0].set_ylabel('y position (m)')
+        axs[2,0].plot(t_history, x_history[:,3])
+        axs[2,0].set_xlabel('time (s)')
+        axs[2,0].set_ylabel('z quaternion')
+        axs[0,1].plot(t_history, x_history[:,4])
+        axs[0,1].set_xlabel('time (s)')
+        axs[0,1].set_ylabel('x velocity')
+        axs[1,1].plot(t_history, x_history[:,5])
+        axs[1,1].set_xlabel('time (s)')
+        axs[1,1].set_ylabel('y velocity')
+        axs[2,1].plot(t_history, x_history[:,6])
+        axs[2,1].set_xlabel('time (s)')
+        axs[2,1].set_ylabel('z angular velocity')
+        
+    def plot_thrust(self):
+        '''
+        Plot Control Input Response
+        '''
+        # Extract parameters
+        t_history = np.array(self.t_history)
+        u_history = np.array(self.u_history)
+        
+        # Plot states
+        fig, axs = plt.subplots(3,3)
+        axs[0,1].plot(t_history[:-1], u_history[:,0])
+        axs[0,1].set_xlabel('time (s)')
+        axs[0,1].set_ylabel('$u_0$ (N)')
+        axs[1,0].plot(t_history[:-1], u_history[:,1])
+        axs[1,0].set_xlabel('time (s)')
+        axs[1,0].set_xlabel('$u_1$ (N)')
+        axs[2,1].plot(t_history[:-1], u_history[:,2])
+        axs[2,1].set_xlabel('time (s)')
+        axs[2,1].set_xlabel('$u_2$ (N)')
+        axs[1,2].plot(t_history[:-1], u_history[:,3])
+        axs[1,2].set_xlabel('time (s)')
+        axs[1,2].set_xlabel('$u_3$ (N)')
+        
+        # Remove extra subplots
+        fig.delaxes(axs[0,0])
+        fig.delaxes(axs[0,2])
+        fig.delaxes(axs[1,1])
+        fig.delaxes(axs[2,0])
+        fig.delaxes(axs[2,2])
         
 if __name__ == "__main__":
-    from floatbot_model import FloatbotModel
-    from floatbot_lqr import FloatbotLQR
-    from floatbot_mpc import FloatbotMPC
+    from model import FloatbotModel
+    from lqr import FloatbotLQR
+    from mpc import FloatbotMPC
     
     # Floatbot parameters
-    mass = 16.8
-    inertia = .1594
-    max_thrust = 1.5
+    mass = 53.76
+    inertia = 33.11
+    max_thrust = np.inf
     moment_arm = .12
-    cg = np.array([.168, 0])
+    cg = np.array([0, 0])
     
     # States
     rx = 0
@@ -155,7 +216,7 @@ if __name__ == "__main__":
     x0 = np.array([rx, ry, qw, qz, vx, vy, wz])
     
     # Commanded States
-    rx_cmd = 1
+    rx_cmd = 0
     ry_cmd = 0
     tht_cmd = 0
     qw_cmd = np.cos(tht_cmd/2)
@@ -168,7 +229,7 @@ if __name__ == "__main__":
     # Controller parameters
     dt = .1
     H = 20
-    Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
+    Q = np.diag([5e1,5e1,8e1,1e1,1e1,1e1])
     R = 1e-1*np.eye(4)
     
     # Simulator parameters

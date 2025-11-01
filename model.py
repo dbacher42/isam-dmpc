@@ -2,7 +2,7 @@ import numpy as np
 import casadi as cs
 
 class FloatbotModel():
-    def __init__(self, mass, inertia, max_thrust, moment_arm, cg=np.zeros(2)):
+    def __init__(self, mass, inertia, moment_arm, cg=np.zeros(2)):
         '''
         Class defining 2D floatbot kinematic and dynamic model
 
@@ -18,7 +18,6 @@ class FloatbotModel():
         # Parameters
         self.mass = mass # kg
         self.inertia = inertia # kg*m**2
-        self.max_thrust = max_thrust # N
         self.moment_arm = moment_arm # m
         self.cg = cg # m
         
@@ -60,7 +59,6 @@ class FloatbotModel():
         # Extract parameters
         m = self.mass
         Izz = self.inertia
-        Tmax = self.max_thrust
         rT = self.moment_arm
         cg_B = self.cg
         
@@ -85,11 +83,11 @@ class FloatbotModel():
         
         # Compute forces from input vector
         f_B = cs.vertcat(
-            Tmax*(u[0] + u[2]),
-            Tmax*(u[1] + u[3])
+            u[0] + u[2],
+            u[1] + u[3]
         )
         f_I = R_BI@f_B
-        t = -rT*Tmax*(u[0] + u[1] - u[2] - u[3])
+        t = -rT*(u[0] + u[1] - u[2] - u[3])
         F = cs.vertcat(f_I, t)
         
         # Dynamics

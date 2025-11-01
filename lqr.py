@@ -3,7 +3,7 @@ import casadi as cs
 import control as ct
 
 class FloatbotLQR():
-    def __init__(self, model, x_cmd, dt, Q=np.eye(6), R=np.eye(4), u_cmd=np.zeros(4)):
+    def __init__(self, model, x_cmd, dt, Q=np.eye(6), R=np.eye(4), u_cmd=np.zeros(4), max_thrust=np.inf):
         '''
         Class defining the MPC controller for a floatbot
 
@@ -26,6 +26,7 @@ class FloatbotLQR():
         self.Q = Q
         self.R = R
         self.u_cmd = u_cmd
+        self.u_max = max_thrust
         
         # Vector sizes
         self.nx = 7 # number of states
@@ -101,10 +102,10 @@ class FloatbotLQR():
         x_err = self.error(x)
         u = -K@x_err
         
-        return np.clip(u, -1, 1)
+        return np.clip(u, -self.u_max, self.u_max)
         
 if __name__ == "__main__":
-    from floatbot_model import FloatbotModel
+    from model import FloatbotModel
     
     # Floatbot parameters
     mass = 16.8

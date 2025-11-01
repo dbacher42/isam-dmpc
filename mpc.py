@@ -2,7 +2,7 @@ import numpy as np
 import casadi as cs
 
 class FloatbotMPC():
-    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), bounds={}):
+    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), max_thrust=np.inf):
         '''
         Class defining the MPC controller for a floatbot
 
@@ -28,6 +28,7 @@ class FloatbotMPC():
         self.H = H
         self.Q = Q
         self.R = R
+        self.u_max = max_thrust
         
         # Vector sizes
         self.nx = 7 # number of states
@@ -39,19 +40,12 @@ class FloatbotMPC():
         self.lbx = -np.inf*np.ones(self.nd)
         self.ubx = np.inf*np.ones(self.nd)
         
-        # Set state bounds
-        for i in range(H+1):
-            for j in range(self.nx):
-                idx = i*self.nx + j
-                self.lbx[idx] = bounds.get('lb_x'+str(j), -np.inf)
-                self.ubx[idx] = bounds.get('ub_x'+str(j), np.inf)
-                    
         # Set control bounds
         for i in range(H):
             for j in range(self.nu):
                 idx = self.nx*(H+1) + i*self.nu + j
-                self.lbx[idx] = -1
-                self.ubx[idx] = 1
+                self.lbx[idx] = -self.u_max
+                self.ubx[idx] = self.u_max
                 
         # Initialize constraint bounds at 0
         self.lbg = np.zeros(self.ng)
@@ -178,7 +172,7 @@ class FloatbotMPC():
         return u
     
 if __name__ == "__main__":
-    from floatbot_model import FloatbotModel
+    from model import FloatbotModel
     
     # Floatbot parameters
     mass = 16.8
