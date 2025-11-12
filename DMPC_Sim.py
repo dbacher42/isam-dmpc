@@ -32,7 +32,32 @@ class DMPC_Sim():
     # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
 
     def step(self):
-        """ Step all agents in the simulation. """
+        """
+           Step all agents in the simulation, ensuring synchronous updates.
+        """
+
+        data   = self.Oracle.data
+        t_hist = self.Oracle.t_hist
+
+        # Part 1: Collect all control inputs 
         for agent in self.agents:
-            agent.step()
+            u = agent.step_control()
+            data[agent.name]['control'].append(u)
+            
+        # Part 2: Propagate all states
+        for agent in self.agents:
+            x = agent.step_state()
+            data[agent.name]['state'].append(x)
+
+        # Time history stored in Oracle
+        t_hist.append(t_hist[-1] + self.dt)
+
+
+# -------------------------------------------------------------------------------------------------
+
+if __name__ == "__main__":
+
+    from model      import FloatbotModel
+    from mpc        import FloatbotMPC
+    from sim        import FloatbotSim
 
