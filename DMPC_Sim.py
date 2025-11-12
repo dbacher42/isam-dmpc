@@ -3,6 +3,7 @@ import casadi  as ca
 import control as ct
 
 from Oracle import Oracle
+from Agent  import Agent
 
 # -------------------------------------------------------------------------------------------------
 
@@ -16,18 +17,38 @@ class DMPC_Sim():
         
     """
 
-    def __init__(self):
+    def __init__(self, dt):
 
+        self.dt     = dt 
         self.Oracle = Oracle()
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
 
-    def add_agent(self, agent):
+    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
+        """
+            Build and return an agent with the specified system model, 
+            initial state, and controller + parameters. 
+
+            Crucially, enforces a common dt across all agents. 
+        """
+
+        agent = Agent(model, self.dt, x0, name=name)
+        agent._build_controller(controller_type, controller_params)
+        self.add_agent(agent)
+        return agent
+    
+    # ---
+
+    def add_agent(self, agents):
         """ Add an agent to the simulation. """
 
-        self.Oracle.add_agent(agent.id, agent.x_current)
-    
+        if isinstance(agents, list):
+            for agent in agents:
+                self.Oracle.add_agent(agent.name, agent.x_current)
+        else:
+            self.Oracle.add_agent(agents.name, agents.x_current)
+
 
     # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
 
