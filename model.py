@@ -129,7 +129,7 @@ if __name__ == "__main__":
     # Control inputs
     u = np.array([0, 0, 0, 0, 0, 0, 0, 0])
     
-    floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
+    floatbot_model = FloatbotModel(mass, inertia, moment_arm, cg)
     
     # Compute the state derivatives for the initial conditions
     for i in range(10):

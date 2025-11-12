@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')  # Use stable backend for Windows
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
@@ -119,7 +121,7 @@ class FloatbotSim():
         ax.set_aspect('equal')
         ax.set_xlabel('x (m)')
         ax.set_ylabel('y (m)')
-        ax.set_title('Floatbot Animation')
+        ax.set_title(f'Floatbot Animation - {self.controller.name}')
         
         # Create plot elements: rectangle for floatbot
         bot_patch = plt.Circle((0, 0), r_bot, fc='b', ec='k')
@@ -243,3 +245,7 @@ if __name__ == "__main__":
     # Run simulation
     lqr_sim.run(Tf)
     mpc_sim.run(Tf)
+    
+    # Keep plots open
+    plt.show()
+    input("Press Enter to close all plots...") 
