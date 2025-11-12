@@ -83,24 +83,4 @@ class Agent():
         
         self.step_control()
         self.step_state()
-        
-        # Propagate time forward
-        self.t_history.append((i+1)*self.dt)
     
-    # --- 
-
-    def run(self, Tf):
-        """
-            Run simulation
-        """
-        # Extract parameters
-        dt = self.dt
-        n_steps = int(Tf/dt)
-        
-        # Run simulation
-        for i in range(n_steps):
-            self.step(i)
-            
-        self.animate(-2, 2, -2, 2)
-        #self.plot_states()
-        #self.plot_thrust()
