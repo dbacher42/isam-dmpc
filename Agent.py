@@ -103,12 +103,3 @@ class Agent():
         return self.x_current
 
     # --- 
-
-    def step(self, i):
-        """
-            Compute control input and propagate state forward one step. 
-        """
-        
-        self.step_control()
-        self.step_state()
-    

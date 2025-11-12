@@ -20,6 +20,7 @@ class DMPC_Sim():
     def __init__(self, dt):
 
         self.dt     = dt 
+        self.agents = []
         self.Oracle = Oracle()
 
 
@@ -40,14 +41,14 @@ class DMPC_Sim():
     
     # ---
 
-    def add_agent(self, agents):
-        """ Add an agent to the simulation. """
+    def add_agent(self, agent):
+        """
+            Add an agent to the simulation and track
+            data in the Oracle.
+        """
 
-        if isinstance(agents, list):
-            for agent in agents:
-                self.Oracle.add_agent(agent.name, agent.x_current)
-        else:
-            self.Oracle.add_agent(agents.name, agents.x_current)
+        self.agents.append(agent)
+        self.Oracle.add_agent(agent)
 
 
     # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
