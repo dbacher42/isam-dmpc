@@ -27,6 +27,7 @@ class FloatbotLQR():
         self.R = R
         self.u_cmd = u_cmd
         self.u_max = max_thrust
+        self.name  = 'LQR'
         
         # Vector sizes
         self.nx = 7 # number of states
@@ -104,45 +105,45 @@ class FloatbotLQR():
         
         return np.clip(u, -self.u_max, self.u_max)
         
-if __name__ == "__main__":
-    from model import FloatbotModel
+# if __name__ == "__main__":
+#     from model import FloatbotModel
     
-    # Floatbot parameters
-    mass = 16.8
-    inertia = .1594
-    max_thrust = 1.5
-    moment_arm = .12
-    cg = np.array([.068, 0])
+#     # Floatbot parameters
+#     mass = 16.8
+#     inertia = .1594
+#     max_thrust = 1.5
+#     moment_arm = .12
+#     cg = np.array([.068, 0])
     
-    # States
-    rx = 0
-    ry = 0
-    tht = np.pi/2
-    qw = np.cos(tht/2)
-    qz = np.sin(tht/2)
-    vx = 0
-    vy = 0
-    wz = 0
-    x = np.array([rx, ry, qw, qz, vx, vy, wz])
+#     # States
+#     rx = 0
+#     ry = 0
+#     tht = np.pi/2
+#     qw = np.cos(tht/2)
+#     qz = np.sin(tht/2)
+#     vx = 0
+#     vy = 0
+#     wz = 0
+#     x = np.array([rx, ry, qw, qz, vx, vy, wz])
     
-    # Commanded States
-    rx_cmd = 0
-    ry_cmd = 0
-    tht_cmd = 0
-    qw_cmd = np.cos(tht_cmd/2)
-    qz_cmd = np.sin(tht_cmd/2)
-    vx_cmd = 0
-    vy_cmd = 0
-    wz_cmd = 0
-    x_cmd = np.array([rx_cmd, ry_cmd, qw_cmd, qz_cmd, vx_cmd, vy_cmd, wz_cmd])
+#     # Commanded States
+#     rx_cmd = 0
+#     ry_cmd = 0
+#     tht_cmd = 0
+#     qw_cmd = np.cos(tht_cmd/2)
+#     qz_cmd = np.sin(tht_cmd/2)
+#     vx_cmd = 0
+#     vy_cmd = 0
+#     wz_cmd = 0
+#     x_cmd = np.array([rx_cmd, ry_cmd, qw_cmd, qz_cmd, vx_cmd, vy_cmd, wz_cmd])
     
-    # LQR parameters
-    dt = .1
-    Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
-    R = 1e-1*np.eye(4)
+#     # LQR parameters
+#     dt = .1
+#     Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
+#     R = 1e-1*np.eye(4)
     
-    floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
-    floatbot_lqr = FloatbotLQR(floatbot_model, x_cmd, dt)
-    u = floatbot_lqr.solve(x)
-    print(u)
+#     floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
+#     floatbot_lqr = FloatbotLQR(floatbot_model, x_cmd, dt)
+#     u = floatbot_lqr.solve(x)
+#     print(u)
         
