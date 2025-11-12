@@ -24,7 +24,8 @@ class Oracle():
 
     def __init__(self):
         
-        self.data = {}
+        self.data   = {}
+        self.t_hist = [0]
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- --- 
