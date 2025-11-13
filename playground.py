@@ -131,6 +131,7 @@ if __name__ == "__main__":
 
     # --- 
 
-    #sim.plot_trajectories()
+    sim.plot_trajectories()
     sim.plot_states()
+    
 
