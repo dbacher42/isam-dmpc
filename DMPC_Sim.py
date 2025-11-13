@@ -53,6 +53,16 @@ class DMPC_Sim():
 
     # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
 
+    def run(self, Tf):
+        """
+            Run the simulation for the specified final time Tf.
+        """
+        N_steps = int(Tf / self.dt)
+        for _ in range(N_steps):
+            self.step()
+
+    # --- 
+
     def step(self):
         """
            Step all agents in the simulation, ensuring synchronous updates.
@@ -71,7 +81,7 @@ class DMPC_Sim():
             x = agent.step_state()
             data[agent.name]['state'].append(x)
 
-        # Time history stored in Oracle
+        # Time history stored in Oracle too
         t_hist.append(t_hist[-1] + self.dt)
 
 
