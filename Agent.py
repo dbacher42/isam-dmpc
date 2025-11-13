@@ -49,7 +49,7 @@ class Agent():
         x_cmd = controller_params['x_cmd']
 
         if controller_type == 'MPC':
-            H = controller_params.get('H', 10)
+            H = controller_params.get('H', 20)
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
             self.controller = FloatbotMPC(self.model, x_cmd, self.dt, H, Q, R)
@@ -100,6 +100,7 @@ class Agent():
         self.x_current[3] = qz/q_mag
         
         self.x_history.append(self.x_current)
+        self.t_history.append(self.t_history[-1] + dt)
         return self.x_current
 
     # --- 

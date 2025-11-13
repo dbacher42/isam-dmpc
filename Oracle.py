@@ -47,6 +47,10 @@ class Oracle():
             Get the state of the specified agent at the specified timestep.
             If timestep is None, get the current state.
         """
+
+        if agent_id not in self.data:
+            raise ValueError(f"Agent ID {agent_id} not found in Oracle data.")
+
         if timestep is None:
             return self.data[agent_id]['state'][-1]
         else:
