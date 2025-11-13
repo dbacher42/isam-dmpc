@@ -2,8 +2,9 @@ import numpy   as np
 import casadi  as ca
 import control as ct
 
-from Oracle import Oracle
-from Agent  import Agent
+from Agent        import Agent
+from Oracle       import Oracle
+from Cartographer import Cartographer
 
 # -------------------------------------------------------------------------------------------------
 
@@ -21,7 +22,9 @@ class DMPC_Sim():
 
         self.dt     = dt 
         self.agents = []
-        self.Oracle = Oracle()
+
+        self.Oracle       = Oracle()
+        self.Cartographer = Cartographer()
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
@@ -83,6 +86,26 @@ class DMPC_Sim():
 
         # Time history stored in Oracle too
         t_hist.append(t_hist[-1] + self.dt)
+
+
+    # --- --- --- --- --- PLOTTING WRAPPERS --- --- --- --- ---
+
+    def animate(self, agents=None):
+        if agents is None: agents = self.agents
+        self.Cartographer.animate(agents)
+    
+    def plot_trajectories(self, agents=None):
+        if agents is None: agents = self.agents
+        self.Cartographer.plot_trajectories(agents)
+
+    def plot_states(self, agents=None):
+        if agents is None: agents = self.agents
+        self.Cartographer.plot_states(agents)
+
+    def plot_controls(self, agents=None):
+        if agents is None: agents = self.agents
+        self.Cartographer.plot_controls(agents)
+        
 
 
 # -------------------------------------------------------------------------------------------------
