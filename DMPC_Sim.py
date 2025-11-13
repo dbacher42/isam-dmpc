@@ -22,6 +22,7 @@ class DMPC_Sim():
 
         self.dt     = dt 
         self.agents = []
+        self.ready  = False
 
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
@@ -46,13 +47,33 @@ class DMPC_Sim():
 
     def add_agent(self, agent):
         """
-            Add an agent to the simulation and track
-            data in the Oracle.
+            Add an agent to the simulation and track data in the Oracle.
         """
 
         self.agents.append(agent)
         self.Oracle.add_agent(agent)
+        self.ready = False 
 
+    # --- 
+
+    def finalize(self):
+        """
+            Finalize simulation setup after all agents have been added.
+            Perform consistency checks and apply standards across agents. 
+        """
+
+        # Only thing for now 
+        self.Cartographer._assign_colors(self.agents)
+
+        # Done
+        self.ready = True
+
+    # --- 
+
+    def _check_ready(self):
+        if not self.ready: 
+            raise RuntimeError("Simulation not finalized. Call finalize() before running.")
+        
 
     # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
 
@@ -60,13 +81,15 @@ class DMPC_Sim():
         """
             Run the simulation for the specified final time Tf.
         """
+        self._check_ready()
+        
         N_steps = int(Tf / self.dt)
         for _ in range(N_steps):
-            self.step()
+            self._step()
 
     # --- 
 
-    def step(self):
+    def _step(self):
         """
            Step all agents in the simulation, ensuring synchronous updates.
         """
@@ -91,21 +114,25 @@ class DMPC_Sim():
     # --- --- --- --- --- PLOTTING WRAPPERS --- --- --- --- ---
 
     def animate(self, agents=None):
+        self._check_ready()
         if agents is None: agents = self.agents
         self.Cartographer.animate(agents)
     
     def plot_trajectories(self, agents=None):
+        self._check_ready()
         if agents is None: agents = self.agents
         self.Cartographer.plot_trajectories(agents)
 
     def plot_states(self, agents=None):
+        self._check_ready()
         if agents is None: agents = self.agents
         self.Cartographer.plot_states(agents)
 
     def plot_controls(self, agents=None):
+        self._check_ready()
         if agents is None: agents = self.agents
         self.Cartographer.plot_controls(agents)
-        
+
 
 
 # -------------------------------------------------------------------------------------------------
