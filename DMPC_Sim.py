@@ -123,10 +123,10 @@ class DMPC_Sim():
         if agents is None: agents = self.agents
         self.Cartographer.plot_trajectories(agents)
 
-    def plot_states(self, agents=None):
+    def plot_states(self, agents=None, layered=True):
         self._check_ready()
         if agents is None: agents = self.agents
-        self.Cartographer.plot_states(agents)
+        self.Cartographer.plot_states(agents, layered=layered)
 
     def plot_controls(self, agents=None):
         self._check_ready()
