@@ -35,8 +35,10 @@ class Oracle():
             Track agent data. 
         """
         self.data[agent.name] = {
-            'state'   : [agent.x_current],
-            'control' : [],
+            'state'      : [agent.x_current],
+            'control'    : [],
+            'target'     : agent.controller.x_cmd,
+            'controller' : agent.controller.name
         }
 
 
