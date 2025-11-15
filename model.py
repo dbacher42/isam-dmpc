@@ -36,7 +36,7 @@ class FloatbotModel():
             x[4] : x velocity in the body frame (m/s)
             x[5] : y velocity in the vody frame (m/s)
             x[6] : z axis rotational velocity (rad/s)
-        u : 8x1 control vector
+        u : 4x1 control vector
             thruster actuation (fraction of max thrust)
 
         Returns
