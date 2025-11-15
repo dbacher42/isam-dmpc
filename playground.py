@@ -10,10 +10,7 @@ from model    import FloatbotModel
 
 def scenario_setup():
     """
-    Super simple 2-agent test:
-    - 10x10 world 
-    - Agent 1 (LQR): Bottom left, faces NE, goes to top left, ends facing up
-    - Agent 2 (MPC): Bottom right, faces NW, goes to top right, ends facing up
+        8 agents
     """
     
     # --- --- --- --- --- PRELIMS --- --- --- --- --- 
@@ -42,7 +39,7 @@ def scenario_setup():
     
     # Controller weights (currently common)
     H = 20
-    Q = np.diag([5e1, 5e1, 8e1, 1e1, 1e1, 1e1])
+    Q = np.diag([5e1, 5e1, 1e3, 1e1, 1e1, 1e1])
     R = 1e-1 * np.eye(4)
     
     x0s   = [ 
@@ -133,5 +130,9 @@ if __name__ == "__main__":
 
     sim.plot_trajectories()
     sim.plot_states()
+    sim.plot_controls()
+    sim.animate()
+
+    a = 0 
     
 
