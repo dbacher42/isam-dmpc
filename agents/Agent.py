@@ -1,7 +1,7 @@
+# Agent.py 
+
 import numpy as np
-from lqr import FloatbotLQR
-from model import FloatbotModel
-from mpc import FloatbotMPC
+from .controllers import *
 
 # -------------------------------------------------------------------------------------------------
 

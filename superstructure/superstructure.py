@@ -3,47 +3,8 @@
 # -------------------------------------------------------------------------------------------------
 
 import mujoco
-from typing import List, Tuple
 
 # -------------------------------------------------------------------------------------------------
-
-class Unit_Block:
-    
-    """
-        Basic building block for the 2D superstructure. 
-
-        Mass properties used for internal calculation within DMPC sim
-        to compare against MuJoCo simulation results.
-    """
-
-    def __init__(self, 
-                 id  : str,
-                 size: float = 1.0):
-        
-        self.id   = id
-        self.size = size
-
-
-# ---
-
-class Connection:
-
-    """
-        Define a connection between two block faces.    
-    """
-
-    def __init__(self, block_a_id: str, face_a: str, 
-                       block_b_id: str, face_b: str):
-
-        self.id_a    = block_a_id
-        self.face_a  = face_a
-        self.id_b    = block_b_id
-        self.face_b  = face_b
-        
-        # self.joint_type = joint_type                  # weld/slide constraints applied in model generation 
-
-
-# --- 
 
 class Superstructure_2D:
 
@@ -74,11 +35,15 @@ class Superstructure_2D:
 
     # ---
 
-    def generate_model(self,
-                       blocks     : List[Unit_Block], 
-                       connections: List[Connection]):
+    def generate_model(self, blocks, connections):
         
-        """ Generate MuJoCo model from blocks and connections. """
+        """ 
+            Generate MuJoCo model from blocks and connections. 
+
+            Inputs:
+                blocks      : List of Unit_Block objects 
+                connections : List of Connection objects
+        """
 
         STRUCTURE = mujoco.MjSpec()
 
@@ -141,3 +106,42 @@ class Superstructure_2D:
         self.model = STRUCTURE.compile()
 
         return 
+    
+
+# ---
+
+class Unit_Block:
+    
+    """
+        Basic building block for the 2D superstructure. 
+
+        Mass properties used for internal calculation within DMPC sim
+        to compare against MuJoCo simulation results.
+    """
+
+    def __init__(self, 
+                 id  : str,
+                 size: float = 1.0):
+        
+        self.id   = id
+        self.size = size
+
+
+# ---
+
+class Connection:
+
+    """
+        Define a connection between two block faces.    
+    """
+
+    def __init__(self, block_a_id: str, face_a: str, 
+                       block_b_id: str, face_b: str):
+
+        self.id_a    = block_a_id
+        self.face_a  = face_a
+        self.id_b    = block_b_id
+        self.face_b  = face_b
+        
+        # self.joint_type = joint_type                  # weld/slide constraints applied in model generation 
+

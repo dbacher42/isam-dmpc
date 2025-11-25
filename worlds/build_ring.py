@@ -2,10 +2,7 @@
 
 # -------------------------------------------------------------------------------------------------
 
-import os
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from superstructure import Unit_Block, Connection, Superstructure_2D
+from superstructure import *
 
 # -------------------------------------------------------------------------------------------------
 
@@ -61,27 +58,27 @@ def build_ring(size=5):
     
     return blocks, connections
 
-def test_ring():
-    """Test the ring structure."""
-    size = 7
-    print(f"Creating {size}x{size} ring structure...")
+# def test_ring():
+#     """Test the ring structure."""
+#     size = 7
+#     print(f"Creating {size}x{size} ring structure...")
     
-    blocks, connections = build_ring(size)
+#     blocks, connections = build_ring(size)
     
-    print(f"Created {len(blocks)} blocks")
-    print(f"Created {len(connections)} connections")
+#     print(f"Created {len(blocks)} blocks")
+#     print(f"Created {len(connections)} connections")
     
-    # Generate MuJoCo model
-    structure = Superstructure_2D()
-    structure.generate_model(blocks, connections)
-    data = mujoco.MjData(structure.model)
+#     # Generate MuJoCo model
+#     structure = Superstructure_2D()
+#     structure.generate_model(blocks, connections)
+#     data = mujoco.MjData(structure.model)
     
-    print("Model created successfully!")
-    print(f"Bodies: {structure.model.nbody}")
-    print(f"Joints: {structure.model.njnt}")
+#     print("Model created successfully!")
+#     print(f"Bodies: {structure.model.nbody}")
+#     print(f"Joints: {structure.model.njnt}")
     
-    # Launch viewer
-    viewer.launch(structure.model, data)
+#     # Launch viewer
+#     viewer.launch(structure.model, data)
 
-if __name__ == "__main__":
-    test_ring()
+# if __name__ == "__main__":
+#     test_ring()
