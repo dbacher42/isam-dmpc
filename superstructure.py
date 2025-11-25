@@ -72,7 +72,7 @@ class Superstructure_2D:
         
         return Connection(block_a_id, face_a, block_b_id, face_b)
 
-    # --- 
+    # ---
 
     def generate_model(self,
                        blocks     : List[Unit_Block], 
@@ -87,7 +87,7 @@ class Superstructure_2D:
         base = STRUCTURE.worldbody.add_body(name=root.id)
         base.add_geom(
                       type=mujoco.mjtGeom.mjGEOM_BOX,
-                      size=[root.size/2, root.size/2, 0.05],
+                      size=[root.size/2, root.size/2, root.size/2],
                       rgba=self.block_rgba
                      )
         
@@ -131,7 +131,7 @@ class Superstructure_2D:
                                    )
             child.add_geom(
                            type=mujoco.mjtGeom.mjGEOM_BOX,                                 # NO joints, RIGID by default 
-                           size=[child_block.size/2, child_block.size/2, 0.05],
+                           size=[child_block.size/2, child_block.size/2, child_block.size/2],
                            rgba=self.block_rgba
                           )
             added[child_id] = child
