@@ -1,10 +1,11 @@
-import numpy   as np 
-import casadi  as ca
-import control as ct
+# DMPC_Sim.py - Simulation Executive
 
-from Agent        import Agent
-from Oracle       import Oracle
-from Cartographer import Cartographer
+from agents         import *
+from Oracle         import Oracle
+from viz            import Cartographer
+from superstructure import *
+
+import mujoco
 
 # -------------------------------------------------------------------------------------------------
 
@@ -26,6 +27,33 @@ class DMPC_Sim():
 
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
+
+        self.env    = mujoco.MjSpec()
+
+    # --- 
+
+    def finalize(self):
+        """
+            Finalize simulation setup after structure and all agents have been added.
+            Perform consistency checks and apply standards across agents. 
+        """
+
+        # Compile  
+        self.model = self.env.compile()
+        self.data  = mujoco.MjData(self.model)
+
+        # Formatting 
+        self.Cartographer._assign_colors(self.agents)
+
+        # Done
+        self.ready = True
+
+
+    # --- --- --- --- --- SUPERSTRUCTURE --- --- --- --- ---
+
+    def build_superstructure(self, blocks, connections): a = 0
+
+
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
@@ -54,19 +82,6 @@ class DMPC_Sim():
         self.Oracle.add_agent(agent)
         self.ready = False 
 
-    # --- 
-
-    def finalize(self):
-        """
-            Finalize simulation setup after all agents have been added.
-            Perform consistency checks and apply standards across agents. 
-        """
-
-        # Only thing for now 
-        self.Cartographer._assign_colors(self.agents)
-
-        # Done
-        self.ready = True
 
     # --- 
 
@@ -137,9 +152,5 @@ class DMPC_Sim():
 
 # -------------------------------------------------------------------------------------------------
 
-if __name__ == "__main__":
-
-    from model      import FloatbotModel
-    from mpc        import FloatbotMPC
-    from sim        import FloatbotSim
-
+if __name__ == "__main__": 
+    a=0
