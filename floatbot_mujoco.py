@@ -6,16 +6,16 @@ from model import FloatbotModel
 from mpc import FloatbotMPC
 
 # Floatbot parameters
-mass = 16.8
-inertia = .1594
+mass = 36.96
+inertia = 1.956
 max_thrust = 1.5
 moment_arm = .12
-cg = np.array([.068, 0])
+cg = np.array([.15, 0])
 
 # States
 rx = 1
 ry = 0
-tht = np.pi/2
+tht = 0
 qw = np.cos(tht/2)
 qz = np.sin(tht/2)
 vx = 0
@@ -44,21 +44,21 @@ floatbot_model = FloatbotModel(mass, inertia, moment_arm, cg)
 floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R, max_thrust)
 
 current_dir = os.path.dirname(__file__)
-xml_path = os.path.join(current_dir, 'floatbot.xml')
+xml_path = os.path.join(current_dir, 'world.xml')
 
 model = mujoco.MjModel.from_xml_path(xml_path)
 data = mujoco.MjData(model)
 
 # Set initial conditions
-data.qpos = [rx, ry, 0, qw, 0, 0, qz]
-data.qvel = [vx, vy, 0, 0, 0, wz]
+data.qpos = [rx, ry, tht]
+data.qvel = [vx, vy, wz]
 
 def mpc_callback(model, data):
 
-    x = [data.qpos[0], data.qpos[1], data.qpos[3], data.qpos[6], data.qvel[0], data.qvel[1], data.qvel[5]]
+    x = [data.qpos[0], data.qpos[1], np.cos(data.qpos[2]/2), np.sin(data.qpos[2]/2), data.qvel[0], data.qvel[1], data.qvel[2]]
     u = floatbot_mpc.solve(x)
 
-    data.ctrl = u
+    data.ctrl[0:4] = u
 
 last_control_time = 0
 

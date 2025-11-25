@@ -1,0 +1,43 @@
+<mujoco>
+    <option gravity="0 0 0"/>
+
+    <asset>
+        <model name="floatbot" file="floatbot.xml"/>
+    </asset>
+    
+    <worldbody>
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir = "0 0 -1"/>
+
+        <body name="structure">
+            <joint type="slide" axis="1 0 0"/>
+            <joint type="slide" axis="0 1 0"/>
+            <joint type="hinge" axis="0 0 1"/>
+
+            <attach model="floatbot" body="voxel" prefix="0_"/>
+
+            <frame pos="-.3 0 0">
+                <attach model="floatbot" body="voxel" prefix="1_"/>
+            </frame>
+
+            <frame pos=".3 0 0">
+                <attach model="floatbot" body="voxel" prefix="2_"/>
+            </frame>
+
+            <frame pos="0 .3 0">
+                <attach model="floatbot" body="voxel" prefix="3_"/>
+            </frame>
+        
+            <frame pos="-.6 0 0">
+                <attach model="floatbot" body="floatbot" prefix="4_"/>
+            </frame>
+
+            <frame pos=".6 0 0">
+                <attach model="floatbot" body="floatbot" prefix="5_"/>
+            </frame>
+
+            <frame pos="0 .6 0">
+                <attach model="floatbot" body="floatbot" prefix="6_"/>
+            </frame>
+        </body>
+    </worldbody>
+</mujoco>
