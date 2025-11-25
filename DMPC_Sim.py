@@ -1,11 +1,13 @@
 # DMPC_Sim.py - Simulation Executive
 
 from agents         import *
+from superstructure import *
+from worlds         import *
 from Oracle         import Oracle
 from viz            import Cartographer
-from superstructure import *
 
 import mujoco
+from   mujoco import viewer
 
 # -------------------------------------------------------------------------------------------------
 
@@ -19,6 +21,8 @@ class DMPC_Sim():
         
     """
 
+    # --- --- --- --- --- SIMULATION CORE --- --- --- --- ---
+
     def __init__(self, dt):
 
         self.dt     = dt 
@@ -30,67 +34,7 @@ class DMPC_Sim():
 
         self.env    = mujoco.MjSpec()
 
-    # --- 
-
-    def finalize(self):
-        """
-            Finalize simulation setup after structure and all agents have been added.
-            Perform consistency checks and apply standards across agents. 
-        """
-
-        # Compile  
-        self.model = self.env.compile()
-        self.data  = mujoco.MjData(self.model)
-
-        # Formatting 
-        self.Cartographer._assign_colors(self.agents)
-
-        # Done
-        self.ready = True
-
-
-    # --- --- --- --- --- SUPERSTRUCTURE --- --- --- --- ---
-
-    def build_superstructure(self, blocks, connections): a = 0
-
-
-
-
-    # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
-
-    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
-        """
-            Build and return an agent with the specified system model, 
-            initial state, and controller + parameters. 
-
-            Crucially, enforces a common dt across all agents. 
-        """
-
-        agent = Agent(model, self.dt, x0, name=name)
-        agent._build_controller(controller_type, controller_params)
-        self.add_agent(agent)
-        return agent
-    
     # ---
-
-    def add_agent(self, agent):
-        """
-            Add an agent to the simulation and track data in the Oracle.
-        """
-
-        self.agents.append(agent)
-        self.Oracle.add_agent(agent)
-        self.ready = False 
-
-
-    # --- 
-
-    def _check_ready(self):
-        if not self.ready: 
-            raise RuntimeError("Simulation not finalized. Call finalize() before running.")
-        
-
-    # --- --- --- --- --- SIMULATION STEPS --- --- --- --- ---
 
     def run(self, Tf):
         """
@@ -125,6 +69,82 @@ class DMPC_Sim():
         # Time history stored in Oracle too
         t_hist.append(t_hist[-1] + self.dt)
 
+    # --- 
+
+    def _check_ready(self):
+        if not self.ready: 
+            raise RuntimeError("Simulation not finalized. Call finalize() before running.")
+        
+    
+    # --- --- --- --- --- MUJOCO COMPILE AND VIEW --- --- --- --- ---
+
+    def finalize(self):
+        """
+            Finalize simulation setup after structure and all agents have been added.
+            Perform consistency checks and apply standards across agents. 
+        """
+
+        # Compile  
+        self.model = self.env.compile()
+        self.data  = mujoco.MjData(self.model)
+
+        # Formatting 
+        self.Cartographer._assign_colors(self.agents)
+
+        # Done
+        self.ready = True
+
+    # ---
+
+    def _view_mjc(self):
+        """ MuJoCo viewer for current sim. """
+
+        if not self.ready:
+            raise RuntimeError("Simulation not finalized. Call finalize() before viewing.")
+        
+        viewer.launch(self.model, self.data)
+
+
+    # --- --- --- --- --- SUPERSTRUCTURE --- --- --- --- ---
+
+    def build_superstructure(self, blocks, connections): 
+        
+        # Build
+        structure = Superstructure_2D()
+        STRUCTURE = structure.generate_model(blocks, connections)
+        
+        # Add to spec 
+        self.env.attach(STRUCTURE, frame=self.env.worldbody.add_frame())
+        self.ready = False 
+
+
+    # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
+
+    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
+        """
+            Build and return an agent with the specified system model, 
+            initial state, and controller + parameters. 
+
+            Crucially, enforces a common dt across all agents. 
+        """
+
+        agent = Agent(model, self.dt, x0, name=name)
+        agent._build_controller(controller_type, controller_params)
+        self.add_agent(agent)
+        return agent
+    
+    # ---
+
+    def add_agent(self, agent):
+        """
+            Add an agent to the simulation and track data in the Oracle.
+        """
+
+        self.agents.append(agent)
+        self.Oracle.add_agent(agent)
+        self.ready = False 
+
+
 
     # --- --- --- --- --- PLOTTING WRAPPERS --- --- --- --- ---
 
@@ -149,8 +169,4 @@ class DMPC_Sim():
         self.Cartographer.plot_controls(agents)
 
 
-
 # -------------------------------------------------------------------------------------------------
-
-if __name__ == "__main__": 
-    a=0

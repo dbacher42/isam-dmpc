@@ -101,11 +101,10 @@ class Superstructure_2D:
                           )
             added[child_id] = child
         
-        # --- 
+        # ---
         
-        self.model = STRUCTURE.compile()
-
-        return 
+        # Compile later in sim exec
+        return STRUCTURE
     
 
 # ---
