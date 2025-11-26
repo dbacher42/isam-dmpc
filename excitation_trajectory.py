@@ -1,5 +1,25 @@
 import numpy as np
 import casadi as cs
+import matplotlib.pyplot as plt
+
+def mixer(u, R):
+    f_B = cs.vertcat(
+        u[0]+u[2],
+        u[1]+u[3]
+    )
+    f_I = R@f_B
+    tau = r*(-u[0]-u[1]+u[2]+u[3])
+    F = cs.vertcat(f_I, tau)
+
+    return F
+
+def rot(qw, qz):
+    R = cs.vertcat(
+        cs.horzcat(qw**2-qz**2, -2*qw*qz),
+        cs.horzcat(2*qw*qz, qw**2-qz**2)
+    )
+
+    return R
 
 def x_dot(x, u, tht):
     '''
@@ -43,19 +63,10 @@ def x_dot(x, u, tht):
     Jzz = tht[3]
 
     # rotation matrix
-    R = cs.vertcat(
-        cs.horzcat(qw**2-qz**2, -2*qw*qz),
-        cs.horzcat(2*qw*qz, qw**2-qz**2)
-    )
+    R = rot(qw, qz)
 
     # thruster allocation
-    f_B = cs.vertcat(
-        u[0]+u[2],
-        u[1]+u[3]
-    )
-    f_I = R@f_B
-    tau = r*(-u[0]-u[1]+u[2]+u[3])
-    F = cs.vertcat(f_I, tau)
+    F = mixer(u, R)
 
     # dynamics
     rho_B = cs.vertcat(rhox, rhoy)
@@ -66,8 +77,8 @@ def x_dot(x, u, tht):
         cs.horzcat(-m*rho_I[1], m*rho_I[0], Jzz)
     )
     C = cs.vertcat(
-        -rho_I[0]*wz**2,
-        -rho_I[1]*wz**2,
+        -m*rho_I[0]*wz**2,
+        -m*rho_I[1]*wz**2,
         0
     )
     Vd = cs.inv(M)@(F-C)
@@ -80,7 +91,7 @@ def x_dot(x, u, tht):
         cs.horzcat(0, -wz),
         cs.horzcat(wz, 0)
     )
-    qd = .5*Omg@q
+    qd = 1/2*Omg@q
 
     xdot = cs.vertcat(pd, qd, Vd)
 
@@ -112,32 +123,33 @@ def x_error(x, xr):
 
     # compute errors
     ep = pr - p
-    eq = 1 - (qr.T@q)**2
+    eq = 1 - (q.T@qr)**2
     eV = Vr - V
     e = cs.vertcat(ep, eq, eV)
 
     return e
 
-# floatbot parameters
+# real mass properties
 m = 16.8
 Jzz = .1594
+rho_x = 0
+rho_y = .068
+params = np.vstack([m, rho_x, rho_y, Jzz])
 u_max = 1.5
 r = .12
-rho_x = 0
-rho_y = 0
-params = np.vstack([m, rho_x, rho_y, Jzz])
 
 # initial/commanded states
 px = 0
 py = 0
-theta = 0
+theta = 1*np.pi/2
 qw = np.cos(theta/2)
 qz = np.sin(theta/2)
 vx = 0
 vy = 0
 omg = 0
-x0 = np.array([px, py, qw, qz, vx, vy, omg])
-phi = np.ones([7,4])
+x0 = np.vstack([px, py, qw, qz, vx, vy, omg])
+phi = np.zeros([7,4])
+F = np.eye(4)
 px_r = 0
 py_r = 0
 theta_r = 0
@@ -145,15 +157,15 @@ qw_r = np.cos(theta_r/2)
 qz_r = np.sin(theta_r/2)
 vx_r = 0
 vy_r = 0
-omg_r = 1
-xr = np.array([px_r, py_r, qw_r, qz_r, vx_r, vy_r, omg_r])
+omg_r = 0
+xr = np.vstack([px_r, py_r, qw_r, qz_r, vx_r, vy_r, omg_r])
 
 # optimization parameters
 h = 20
-dt = .1
-Q = np.diag([5e1, 5e1, 8e3, 1e1, 1e1, 1e1])
+dt = .5
+Q = np.diag([5e1, 5e1, 8e1, 1e1, 1e1, 1e1])
 R = 1e-1*np.eye(4)
-l = 1
+l = np.vstack([1000, 100, 100, 100])
 sig = .01*np.eye(7)
 
 # vector sizes
@@ -192,10 +204,10 @@ for k in range(h):
     e = x_error(X[:,k], xr)
 
     # compute fisher information matrix
-    F = phi.T@cs.inv(sig)@phi
+    F += phi.T@cs.inv(sig)@phi
 
     # running cost
-    cost += e.T@Q@e + U[:,k].T@R@U[:,k] + l*cs.trace(cs.inv(F))
+    cost += e.T@Q@e + U[:,k].T@R@U[:,k]
 
     # dynamics constraint
     X_next = X[:,k] + dt*x_dot(X[:,k],U[:,k],params)
@@ -206,7 +218,7 @@ for k in range(h):
 
 # terminal cost
 e = x_error(X[:,h], xr)
-cost += e.T@Q@e
+cost += e.T@Q@e + l.T@cs.diag(cs.inv(F))
 
 # assemble decision and constraint vectors
 opt_vars = cs.vertcat(cs.reshape(X, -1, 1), cs.reshape(U, -1, 1))
@@ -237,4 +249,80 @@ for i in range(h):
         lbx[idx] = -u_max
         ubx[idx] = u_max
 
+# solve trajectory
 sol = solver(p=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+sol_opt = sol['x'].full().flatten()
+
+# extract optimal trajectory
+px_opt = []
+py_opt = []
+qw_opt = []
+qz_opt = []
+vx_opt = []
+vy_opt = []
+wz_opt = []
+u_opt = []
+t_opt = []
+
+for i in range(h):
+    px_opt.append(sol_opt[i*nx])
+    py_opt.append(sol_opt[i*nx+1])
+    qw_opt.append(sol_opt[i*nx+2])
+    qz_opt.append(sol_opt[i*nx+3])
+    vx_opt.append(sol_opt[i*nx+4])
+    vy_opt.append(sol_opt[i*nx+5])
+    wz_opt.append(sol_opt[i*nx+6])
+    u_opt.append(sol_opt[nx*(h+1)+nu*i:nx*(h+1)+nu*(i+1)])
+    t_opt.append(i*dt)
+
+fig, axs = plt.subplots(3,2)
+axs[0,0].plot(t_opt, px_opt)
+axs[0,0].set_ylabel('x position')
+axs[1,0].plot(t_opt, py_opt)
+axs[1,0].set_ylabel('y position')
+axs[2,0].plot(t_opt, qz_opt)
+axs[2,0].set_ylabel('z quaternion')
+axs[0,1].plot(t_opt, vx_opt)
+axs[0,1].set_ylabel('x velocity')
+axs[1,1].plot(t_opt, vy_opt)
+axs[1,1].set_ylabel('y velocity')
+axs[2,1].plot(t_opt, wz_opt)
+axs[2,1].set_ylabel('z angular velocity')
+plt.show()
+
+b = np.zeros([3*h, 1])
+A = np.zeros([3*h, 4])
+
+# Execute the trajectory and estimate the mass properties
+x_hat = np.array(x0)
+for k in range(h):
+    acc = x_dot(x_hat, u_opt[k], params)
+
+    # Assemble the measurement matrix for this time step
+    F = mixer(u_opt[k], rot(x_hat[2], x_hat[3]))
+
+    b[3*k,0] = acc[4]
+    b[3*k+1,0] = acc[5]
+
+    A[3*k,0] = F[0]
+    A[3*k+1,0] = F[1]
+    A[3*k+2,0] = F[2]
+    A[3*k,1] = x_hat[6]**2
+    A[3*k+1,1] = acc[6]
+    A[3*k+2,1] = -acc[5]
+    A[3*k,2] = acc[6]
+    A[3*k+1,2] = x_hat[6]**2
+    A[3*k+2,2] = acc[4]
+    A[3*k+2,3] = -acc[6]
+
+    # Propogate the trajectory
+    x_hat = x_hat + acc*dt
+
+# estimate using least-squares pseudoinverse
+b = np.array(b)
+A = np.array(A)
+tht_hat = np.linalg.inv(A.T@A)@A.T@b
+print(1/tht_hat[0])
+print(tht_hat[1])
+print(tht_hat[2])
+print(tht_hat[3]/tht_hat[0])

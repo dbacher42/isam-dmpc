@@ -69,8 +69,8 @@ class FloatbotSim():
             self.step(i)
             
         self.animate(-2, 2, -2, 2)
-        #self.plot_states()
-        #self.plot_thrust()
+        self.plot_states()
+        self.plot_thrust()
         
     def animate(self, lbx, ubx, lby, uby):
         def rot(q):
@@ -234,9 +234,9 @@ if __name__ == "__main__":
     
     # Simulator parameters
     Tf = 10
-    floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
+    floatbot_model = FloatbotModel(mass, inertia, moment_arm, cg)
     floatbot_lqr = FloatbotLQR(floatbot_model, x_cmd, dt, Q=Q, R=R)
-    floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R)
+    floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R, max_thrust)
     lqr_sim = FloatbotSim(floatbot_model, floatbot_lqr, x0)
     mpc_sim = FloatbotSim(floatbot_model, floatbot_mpc, x0)
     
