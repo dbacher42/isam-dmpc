@@ -32,9 +32,16 @@ class DMPC_Sim():
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
 
-        self.env    = mujoco.MjSpec()
+        self._start_env()
 
     # ---
+
+    def _start_env(self):
+        """ Starts up base MJC spec - does not compile here. """
+
+        self.env = mujoco.MjSpec()
+        
+    # --- 
 
     def run(self, Tf):
         """
@@ -129,7 +136,7 @@ class DMPC_Sim():
         """
 
         agent = Agent(model, self.dt, x0, name=name)
-        agent._build_controller(controller_type, controller_params)
+        agent.build_controller(controller_type, controller_params)
         self.add_agent(agent)
         return agent
     
@@ -140,9 +147,14 @@ class DMPC_Sim():
             Add an agent to the simulation and track data in the Oracle.
         """
 
+        # Sim
         self.agents.append(agent)
         self.Oracle.add_agent(agent)
+        
+        # Add to MJC 
+        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame())
         self.ready = False 
+
 
 
 

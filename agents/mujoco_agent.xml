@@ -4,6 +4,11 @@
     <worldbody>
         <body name="floatbot" pos="0 0 0">
             
+            <!-- Enforce planar motion -->
+            <joint name="x"     type="slide" axis="1 0 0"/>
+            <joint name="y"     type="slide" axis="0 1 0"/>  
+            <joint name="theta" type="hinge" axis="0 0 1"/>
+            
             <geom name="floatbot_body" type="cylinder" size=".12 .15" rgba="0 0 1 1"/>
 
             <inertial pos="0 0 0" mass="16.8" diaginertia=".121 .121 .121"/>
