@@ -45,7 +45,7 @@ class Agent():
     
     # --- 
 
-    def _build_controller(self, controller_type, controller_params):
+    def build_controller(self, controller_type, controller_params):
         """
             Build controller internally with provided dt
         """
@@ -64,25 +64,6 @@ class Agent():
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
             self.controller = FloatbotLQR(self.model, x_cmd, self.dt, Q, R)
-
-    # --- 
-
-    def _build_mjc_model(self):
-        """ 
-            Build MuJoCo model for this agent. 
-        """
-        
-        path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
-        spec = mujoco.MjSpec.from_file(path)
-        base = spec.worldbody.first_body()
-
-        # X0 
-        x0 = self.x_history[0][0:2]
-        base.pos  = np.array([*x0, 0])
-        base.name = self.name
-
-        # Store spec now, compile in main sim later 
-        self.spec = spec 
 
 
     # --- --- --- --- --- SIMULATION STEP --- --- --- --- ---
@@ -128,4 +109,80 @@ class Agent():
         self.t_history.append(self.t_history[-1] + dt)
         return self.x_current
 
+
+    # --- --- --- --- --- MUJOCO --- --- --- --- ---
+
+    def _build_mjc_model(self):
+        """ 
+            Build MuJoCo model for this agent. 
+        """
+        
+        path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
+        spec = mujoco.MjSpec.from_file(path)
+        base = spec.worldbody.first_body()
+
+        # X0 
+        x0 = self.x_history[0][0:2]
+        base.pos  = np.array([*x0, 0])
+        base.name = self.name
+
+        # Store spec now, compile in main sim later 
+        self.spec = spec 
+        self._rename_spec()
+
+
     # --- 
+
+    def _rename_spec(self):
+        """
+            Add unique agent name to all entities in the spec to avoid conflicts.
+        """
+
+        if not hasattr(self, 'spec'):
+            raise RuntimeError("MuJoCo spec not built yet. Call _build_mjc_model() first.")
+        if self.name is None:
+            raise RuntimeError("Agent has no name. Set agent.name before renaming spec.")
+        
+        spec   = self.spec
+        prefix = self.name
+        
+        # ---
+
+        def _rename(body):
+            """Recursively prefix body and all its children."""
+            if body.name:
+                body.name = f"{prefix}_{body.name}"
+            
+            # Geoms
+            for geom in body.geoms:     
+                if geom.name:
+                    geom.name = f"{prefix}_{geom.name}"
+
+            # Sites
+            for site in body.sites:
+                if site.name:
+                    site.name = f"{prefix}_{site.name}"
+            
+            # Joints
+            for joint in body.joints:
+                if joint.name:
+                    joint.name = f"{prefix}_{joint.name}"
+                    
+            # Recurse
+            for child_body in body.bodies:
+                _rename(child_body)
+        
+        # --- 
+        
+        # Rename all bodies 
+        for body in spec.worldbody.bodies:
+            _rename(body)
+        
+        # Actuators
+        for actuator in spec.actuators:
+            if actuator.name:
+                actuator.name = f"{prefix}_{actuator.name}"
+            # Update site reference
+            if hasattr(actuator, 'site') and actuator.site:
+                actuator.site = f"{prefix}_{actuator.site}"
+
