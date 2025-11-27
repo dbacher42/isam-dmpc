@@ -1,6 +1,9 @@
 # Agent.py 
 
+import os 
 import numpy as np
+import mujoco 
+
 from .controllers import *
 
 # -------------------------------------------------------------------------------------------------
@@ -36,6 +39,9 @@ class Agent():
         # Current 
         self.x_current = x0
         self.u_current = np.zeros(8)
+
+        # MJC
+        self._build_mjc_model()
     
     # --- 
 
@@ -58,6 +64,25 @@ class Agent():
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
             self.controller = FloatbotLQR(self.model, x_cmd, self.dt, Q, R)
+
+    # --- 
+
+    def _build_mjc_model(self):
+        """ 
+            Build MuJoCo model for this agent. 
+        """
+        
+        path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
+        spec = mujoco.MjSpec.from_file(path)
+        base = spec.worldbody.first_body()
+
+        # X0 
+        x0 = self.x_history[0][0:2]
+        base.pos  = np.array([*x0, 0])
+        base.name = self.name
+
+        # Store spec now, compile in main sim later 
+        self.spec = spec 
 
 
     # --- --- --- --- --- SIMULATION STEP --- --- --- --- ---
