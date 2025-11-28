@@ -143,10 +143,15 @@ class Agent():
 
         self._check_ready()
 
-        # Apply control inputs
-        for i in range(4):                                            # NOTE: hardcoded 4 thrusters 
-            actuator_name = f"{self.name}_thruster_{i+1}"
-            data.ctrl[actuator_name] = self.u_current[i]
+        # Apply control inputs using name lookup (now that actuators exist)
+        for i in range(4):
+            actuator_name = f"{self.name}_thruster_{i}"
+            actuator_id = mujoco.mj_name2id(data.model, mujoco.mjtObj.mjOBJ_ACTUATOR, actuator_name)
+            
+            if actuator_id >= 0:
+                data.ctrl[actuator_id] = self.u_current[i]
+            else:
+                print(f"Warning: Actuator {actuator_name} not found")
 
     # --- 
 
@@ -247,11 +252,16 @@ class Agent():
         for body in spec.worldbody.bodies:
             _rename(body)
         
-        # Actuators
+        # Actuators - check what attribute holds site reference
         for actuator in spec.actuators:
             if actuator.name:
                 actuator.name = f"{prefix}_{actuator.name}"
-            # Update site reference
-            if hasattr(actuator, 'site') and actuator.site:
-                actuator.site = f"{prefix}_{actuator.site}"
+            
+            # Try different possible attributes for site reference
+            for attr in ['site', 'refsite', 'target']:
+                if hasattr(actuator, attr):
+                    site_ref = getattr(actuator, attr)
+                    if site_ref and isinstance(site_ref, str):
+                        setattr(actuator, attr, f"{prefix}_{site_ref}")
+                        break
 
