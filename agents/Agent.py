@@ -209,6 +209,7 @@ class Agent():
         qz = np.sin(tht/2)
         
         self.x_current = np.array([rx, ry, qw, qz, vx, vy, wz])
+        self.x_history.append(self.x_current)
         return self.x_current
 
     # ---

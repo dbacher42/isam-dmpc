@@ -15,5 +15,10 @@ from scenarios import *
 
 # -------------------------------------------------------------------------------------------------
 
-run_ring_formation_scenario()
+sim = run_ring_formation_scenario()
 
+sim.plot_trajectories()
+sim.plot_states()
+sim.plot_controls()
+
+a = 0
