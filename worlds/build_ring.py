@@ -58,6 +58,41 @@ def build_ring(size=5):
     
     return blocks, connections
 
+
+def build_centered_ring(size=5, center=(0, 0)):
+    """
+    Build a ring structure centered at the specified position.
+    
+    Parameters
+    ----------
+    size : int
+        Ring size (e.g., 7 creates positions from 0 to 6)
+    center : tuple
+        (x, y) position to center the ring at
+        
+    Returns
+    -------
+    blocks, connections
+        Ready to use with superstructure, pre-centered
+    """
+    from superstructure import Superstructure_2D
+    
+    # Build standard ring
+    blocks, connections = build_ring(size)
+    
+    # Calculate offset needed to center the ring
+    # Standard ring goes from (0,0) to (size-1, size-1)
+    # So center is at ((size-1)/2, (size-1)/2)
+    ring_center_x = (size - 1) / 2
+    ring_center_y = (size - 1) / 2
+    
+    offset_x = center[0] - ring_center_x
+    offset_y = center[1] - ring_center_y
+    
+    # Note: The actual transformation will be applied in the superstructure
+    # This function just returns the blocks and offset information
+    return blocks, connections, (offset_x, offset_y)
+
 # def test_ring():
 #     """Test the ring structure."""
 #     size = 7
