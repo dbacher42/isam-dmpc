@@ -9,3 +9,5 @@ Available scenarios:
 """
 
 # Import common scenario utilities here if needed
+
+from .ring_formation import run_ring_formation_scenario
