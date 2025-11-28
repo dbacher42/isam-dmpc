@@ -33,25 +33,51 @@ class DMPC_Sim():
         self.Cartographer = Cartographer()
 
         self._start_env()
-
-    # ---
-
-    def _start_env(self):
-        """ Starts up base MJC spec - does not compile here. """
-
-        self.env = mujoco.MjSpec()
         
     # --- 
 
-    def run(self, Tf):
+    def run(self, time, render=True, real_time=True):
         """
-            Run the simulation for the specified final time Tf.
+            Run the simulation for the specified time.
+            
+            Parameters
+            ----------
+            time : float
+                Simulation time
+            render : bool, optional 
+                Whether to show real-time rendering (default: True)
+            real_time : bool, optional
+                Whether to run at real-time speed (default: True)
         """
+        import time as time_module
+        
         self._check_ready()
         
-        N_steps = int(Tf / self.dt)
+        if render:
+            self._start_viewer()
+        
+        N_steps = int(time / self.dt)
+        start_time = time_module.time()
+        
         for _ in range(N_steps):
+            step_start = time_module.time()
+            
             self._step()
+            
+            # Enforce real-time if desired
+            if real_time:
+                elapsed = time_module.time() - step_start
+                sleep_time = self.dt - elapsed
+                if sleep_time > 0:
+                    time_module.sleep(sleep_time)
+        
+        if render:
+            # Keep viewer open a bit longer
+            time_module.sleep(2)
+            self._stop_viewer()
+            
+        total_time = time_module.time() - start_time
+        print(f"Simulation completed: {time}s simulated in {total_time:.2f}s wall time")
 
     # --- 
 
@@ -69,7 +95,7 @@ class DMPC_Sim():
             agent._apply_mjc_control(self.data)          # self.data is from MJC sim  
             truth[agent.name]['control'].append(u)
         
-        # Part 2: Syncrhonous MJC update 
+        # Part 2: Synchronous MJC update 
         mujoco.mj_step(self.model, self.data)
 
         # Part 3: Extract and update states locally in agent + Oracle  
@@ -80,6 +106,10 @@ class DMPC_Sim():
         # Time history stored in Oracle too
         t_hist.append(t_hist[-1] + self.dt)
 
+        # Render if viewer is active
+        if self.viewer is not None:
+            self.viewer.sync()
+
     # --- 
 
     def _check_ready(self):
@@ -88,6 +118,13 @@ class DMPC_Sim():
         
     
     # --- --- --- --- --- MUJOCO COMPILE AND VIEW --- --- --- --- ---
+
+    def _start_env(self):
+        """ Starts up base MJC spec - does not compile here. """
+
+        self.env = mujoco.MjSpec()
+
+    # --- 
 
     def finalize(self):
         """
@@ -106,18 +143,31 @@ class DMPC_Sim():
         # Formatting 
         self.Cartographer._assign_colors(self.agents)
 
+        # Optional viewer 
+        self.viewer = None
+
         # Done
         self.ready = True
 
     # ---
 
-    def _view_mjc(self):
-        """ MuJoCo viewer for current sim. """
-
-        if not self.ready:
-            raise RuntimeError("Simulation not finalized. Call finalize() before viewing.")
+    def _start_viewer(self):
+        """ Start real-time viewer."""
         
-        viewer.launch(self.model, self.data)
+        if not self.ready:
+            raise RuntimeError("Simulation not finalized. Call finalize() before starting viewer.")
+        
+        if self.viewer is None:
+            self.viewer = viewer.launch_passive(self.model, self.data)
+    
+    # --- 
+
+    def _stop_viewer(self):
+        """ Stop real-time viewer. """
+        
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None
 
 
     # --- --- --- --- --- SUPERSTRUCTURE --- --- --- --- ---
