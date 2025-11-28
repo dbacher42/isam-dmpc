@@ -119,9 +119,8 @@ class Agent():
         
         path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
         spec = mujoco.MjSpec.from_file(path)
-        base = spec.worldbody.first_body()
-        base.name = self.name
-
+        
+        # Don't set base.name here - let _rename_spec handle it
         # Store spec now, compile in main sim later 
         self.spec = spec 
         self._rename_spec()
@@ -182,6 +181,9 @@ class Agent():
         X_joint.qvel[0]   = vx
         Y_joint.qvel[0]   = vy
         THT_joint.qvel[0] = wz
+        
+        # Update derived quantities + body positions from joints
+        mujoco.mj_forward(data.model, data)
 
     # --- 
 
