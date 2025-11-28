@@ -36,14 +36,14 @@ def angle_to_quat(angle):
     return [np.cos(angle/2), np.sin(angle/2)]
 
 # Floatbot model (common)
-mass       = 53.76
-inertia    = 33.11
+mass       = 36.96
+inertia    = 1.956
 moment_arm = 0.12
-cg         = np.array([0, 0])
+cg         = np.array([.15, 0])
 model      = FloatbotModel(mass, inertia, moment_arm, cg)
 
 # Controller weights (currently common)
-H = 20
+H = 10
 Q = np.diag([5e1, 5e1, 1e3, 1e1, 1e1, 1e1])
 R = 1e-1 * np.eye(4)
 
@@ -93,8 +93,11 @@ for i in range(len(x0s)):
     sim.build_agent(name, model, x0, ctrl_type, **ctrl_params)
     print(f" Built {name}. Start: {x0[:4]} → Target: {x_cmd[:4]}")
 
+    
+
 
 # --- --- --- --- ---      RUN     --- --- --- --- --- 
 
 sim.finalize()
-sim._view_mjc()
+sim.run(10)
+a = 0
