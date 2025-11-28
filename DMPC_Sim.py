@@ -13,7 +13,7 @@ from   mujoco import viewer
 
 class DMPC_Sim():
     """ 
-        
+
         Simulation executive. 
     
         Instantiates the superstructure and all agents 
@@ -59,14 +59,23 @@ class DMPC_Sim():
         N_steps = int(time / self.dt)
         start_time = time_module.time()
         
-        for _ in range(N_steps):
+        step_times = []
+        
+        for i in range(N_steps):
             step_start = time_module.time()
             
             self._step()
             
+            elapsed = time_module.time() - step_start
+            step_times.append(elapsed)
+            
+            # Print timing info every 10 steps
+            if i % 10 == 0:
+                avg_time = sum(step_times[-10:]) / min(len(step_times), 10)
+                print(f"Step {i}: {elapsed:.3f}s (avg: {avg_time:.3f}s, target: {self.dt:.3f}s)")
+            
             # Enforce real-time if desired
             if real_time:
-                elapsed = time_module.time() - step_start
                 sleep_time = self.dt - elapsed
                 if sleep_time > 0:
                     time_module.sleep(sleep_time)
@@ -126,7 +135,7 @@ class DMPC_Sim():
 
     # --- 
 
-    def finalize(self):
+    def finalize(self, verbose=False):
         """
             Finalize simulation setup after structure and all agents have been added.
             Perform consistency checks and apply standards across agents. 
@@ -137,8 +146,19 @@ class DMPC_Sim():
         self.data  = mujoco.MjData(self.model)
 
         # Initialize all agent states from their x0 values
+        print(f"Setting initial states for {len(self.agents)} agents...")
         for agent in self.agents:
-            agent._set_mjc_initial_state(self.data)
+                agent._set_mjc_initial_state(self.data)
+
+        # Verbose
+        if verbose:
+            print("=== BODY POSITIONS ===")
+            for agent in self.agents:
+                body_name = f"{agent.name}_floatbot"
+                body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, body_name)
+                if body_id >= 0:
+                    pos = self.data.xpos[body_id]
+                    print(f"{agent.name}: {pos}")
 
         # Formatting 
         self.Cartographer._assign_colors(self.agents)
