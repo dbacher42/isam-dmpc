@@ -1,3 +1,3 @@
 # worlds package
 
-from .build_ring import build_ring  
+from .build_ring import *
