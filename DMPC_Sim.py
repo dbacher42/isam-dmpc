@@ -60,18 +60,22 @@ class DMPC_Sim():
            Step all agents in the simulation, ensuring synchronous updates.
         """
 
-        data   = self.Oracle.data
+        truth  = self.Oracle.data
         t_hist = self.Oracle.t_hist
 
         # Part 1: Collect all control inputs 
         for agent in self.agents:
             u = agent.step_control()
-            data[agent.name]['control'].append(u)
-            
-        # Part 2: Propagate all states
+            agent._apply_mjc_control(self.data)          # self.data is from MJC sim  
+            truth[agent.name]['control'].append(u)
+        
+        # Part 2: Syncrhonous MJC update 
+        mujoco.mj_step(self.model, self.data)
+
+        # Part 3: Extract and update states locally in agent + Oracle  
         for agent in self.agents:
-            x = agent.step_state()
-            data[agent.name]['state'].append(x)
+            x = agent._extract_mjc_state(self.data)
+            truth[agent.name]['state'].append(x)
 
         # Time history stored in Oracle too
         t_hist.append(t_hist[-1] + self.dt)
@@ -94,6 +98,10 @@ class DMPC_Sim():
         # Compile  
         self.model = self.env.compile()
         self.data  = mujoco.MjData(self.model)
+
+        # Initialize all agent states from their x0 values
+        for agent in self.agents:
+            agent._set_mjc_initial_state(self.data)
 
         # Formatting 
         self.Cartographer._assign_colors(self.agents)
