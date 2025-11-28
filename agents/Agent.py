@@ -120,10 +120,6 @@ class Agent():
         path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
         spec = mujoco.MjSpec.from_file(path)
         base = spec.worldbody.first_body()
-
-        # X0 
-        x0 = self.x_history[0][0:2]
-        base.pos  = np.array([*x0, 0])
         base.name = self.name
 
         # Store spec now, compile in main sim later 
@@ -151,6 +147,36 @@ class Agent():
         for i in range(4):                                            # NOTE: hardcoded 4 thrusters 
             actuator_name = f"{self.name}_thruster_{i+1}"
             data.ctrl[actuator_name] = self.u_current[i]
+
+    # --- 
+
+    def _set_mjc_initial_state(self, data):
+        """
+            Set initial joint positions and velocities from x0.
+        """
+        
+        # Get initial state
+        x0 = self.x_history[0]
+        rx, ry = x0[0], x0[1]
+        qw, qz = x0[2], x0[3]
+        vx, vy, wz = x0[4], x0[5], x0[6]
+        
+        # Quat to angle 
+        tht = 2 * np.arctan2(qz, qw)
+        
+        # Set joint positions
+        X_joint   = data.joint(f"{self.name}_x")
+        Y_joint   = data.joint(f"{self.name}_y") 
+        THT_joint = data.joint(f"{self.name}_theta")
+        
+        X_joint.qpos[0]   = rx
+        Y_joint.qpos[0]   = ry  
+        THT_joint.qpos[0] = tht
+        
+        # Set joint velocities
+        X_joint.qvel[0]   = vx
+        Y_joint.qvel[0]   = vy
+        THT_joint.qvel[0] = wz
 
     # --- 
 
