@@ -130,19 +130,62 @@ class Agent():
         self.spec = spec 
         self._rename_spec()
 
+    # --- 
+
+    def _check_ready(self):
+        if not hasattr(self, 'model'):
+            raise RuntimeError("MuJoCo model not built yet. Call _build_mjc_model() first.")
+        if not hasattr(self, 'name'):
+            raise RuntimeError("Must set agent.name first.")
+        
+    # ---
+
+    def _apply_mjc_control(self, data):
+        """
+            Apply current control input to MuJoCo actuators. 
+        """
+
+        self._check_ready()
+
+        # Apply control inputs
+        for i in range(4):                                            # NOTE: hardcoded 4 thrusters 
+            actuator_name = f"{self.name}_thruster_{i+1}"
+            data.ctrl[actuator_name] = self.u_current[i]
 
     # --- 
+
+    def _extract_mjc_state(self, data):
+        """
+            Extract current state from MuJoCo data. 
+        """
+        
+        # Read from joints directly 
+        X   = data.joint(f"{self.name}_x")
+        Y   = data.joint(f"{self.name}_y") 
+        THT = data.joint(f"{self.name}_theta")
+        
+        rx  =   X.qpos[0]
+        ry  =   Y.qpos[0]
+        tht = THT.qpos[0]
+        vx  =   X.qvel[0]
+        vy  =   Y.qvel[0]
+        wz  = THT.qvel[0]
+        
+        # Convert angle to quaternion
+        qw = np.cos(tht/2)
+        qz = np.sin(tht/2)
+        
+        self.x_current = np.array([rx, ry, qw, qz, vx, vy, wz])
+        return self.x_current
+
+    # ---
 
     def _rename_spec(self):
         """
             Add unique agent name to all entities in the spec to avoid conflicts.
         """
 
-        if not hasattr(self, 'spec'):
-            raise RuntimeError("MuJoCo spec not built yet. Call _build_mjc_model() first.")
-        if self.name is None:
-            raise RuntimeError("Agent has no name. Set agent.name before renaming spec.")
-        
+        self._check_ready()
         spec   = self.spec
         prefix = self.name
         
