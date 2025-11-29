@@ -24,7 +24,7 @@ def angle_to_quat(angle):
 
 def run_ring_formation_scenario(
     dt=0.1, 
-    sim_time=10.0, 
+    sim_time=30.0, 
     mpc_horizon=10, 
     render=True, 
     real_time=True,
@@ -56,8 +56,8 @@ def run_ring_formation_scenario(
     sim = DMPC_Sim(dt)
     
     # Build ring superstructure
-    blocks, connections = build_ring(size=7)
-    sim.build_superstructure(blocks, connections)
+    #blocks, connections = build_ring(size=7)
+    #sim.build_superstructure(blocks, connections)
     
     # --- AGENT CONFIGURATION ---
     
@@ -66,14 +66,14 @@ def run_ring_formation_scenario(
     NE, NW, SW, SE = np.pi/4, 3*np.pi/4, 5*np.pi/4, 7*np.pi/4
     
     # Floatbot model parameters
-    mass = 36.96
-    inertia = 1.956  
+    mass = 18.48
+    inertia = .1462 
     moment_arm = 0.12
-    cg = np.array([.15, 0])
+    cg = np.array([0, 0])
     model = FloatbotModel(mass, inertia, moment_arm, cg)
     
     # Controller weights
-    Q = np.diag([5e1, 5e1, 1e3, 1e1, 1e1, 1e1])
+    Q = np.diag([5e1, 5e1, 1e3, 1e2, 1e2, 1e1])
     R = 1e-1 * np.eye(4)
     
     # Initial positions and targets
@@ -100,7 +100,7 @@ def run_ring_formation_scenario(
     ]
     
     # Controller types (1: MPC, 0: LQR)
-    control = [1, 1, 1, 1, 0, 0, 0, 0]
+    control = [1, 1, 1, 1, 1, 1, 1, 1]
     
     # --- BUILD AGENTS ---
     
@@ -114,7 +114,7 @@ def run_ring_formation_scenario(
             ctrl_params = {'x_cmd': x_cmd, 'Q': Q, 'R': R}
         else:
             ctrl_type = 'MPC'
-            ctrl_params = {'x_cmd': x_cmd, 'H': mpc_horizon, 'Q': Q, 'R': R}
+            ctrl_params = {'x_cmd': x_cmd, 'H': mpc_horizon, 'Q': Q, 'R': R, 'max_thrust': 1.5}
         
         name = f"Agent_{i+1}_{ctrl_type}"
         sim.build_agent(name, model, x0, ctrl_type, **ctrl_params)
