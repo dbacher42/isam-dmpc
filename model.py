@@ -2,7 +2,7 @@ import numpy as np
 import casadi as cs
 
 class FloatbotModel():
-    def __init__(self, mass, inertia, moment_arm, cg=np.zeros(2)):
+    def __init__(self, mass, inertia, moment_arm, cg=np.zeros(2), ri=[np.zeros(2)]):
         '''
         Class defining 2D floatbot kinematic and dynamic model
 
@@ -14,12 +14,16 @@ class FloatbotModel():
         moment_arm : tangential distance to thrusters from centroid (m)
         cg : offset of the cg from the centroid, defined in the body frame (m) 
             optional, defaults to [0, 0]
+        ri : actuator centroid offset from structure's centroid, defined in the body frame (m) 
+            optional, defaults to [0, 0]
         '''
         # Parameters
         self.mass = mass # kg
         self.inertia = inertia # kg*m**2
         self.moment_arm = moment_arm # m
         self.cg = cg # m
+        self.ri = ri # m
+        self.n = len(self.ri)
         
     def xdot(self, x, u):
         '''
@@ -36,8 +40,8 @@ class FloatbotModel():
             x[4] : x velocity in the body frame (m/s)
             x[5] : y velocity in the vody frame (m/s)
             x[6] : z axis rotational velocity (rad/s)
-        u : 4x1 control vector
-            thruster actuation (fraction of max thrust)
+        u : 4*nx1 control vector
+            thruster force (N)
 
         Returns
         -------
@@ -60,7 +64,7 @@ class FloatbotModel():
         m = self.mass
         Izz = self.inertia
         rT = self.moment_arm
-        cg_B = self.cg
+        cg_B = cs.vertcat(self.cg[0], self.cg[1])
         
         # Extract states
         q = cs.vertcat(x[2],x[3])
@@ -82,13 +86,21 @@ class FloatbotModel():
         qdot = 1/2*Omg@q
         
         # Compute forces from input vector
-        f_B = cs.vertcat(
-            u[0] + u[2],
-            u[1] + u[3]
+        f_I = []
+        t = []
+        for i in range(self.n):
+            f_B = cs.vertcat(
+                u[i*4+0] + u[i*4+2],
+                u[i*4+1] + u[i*4+3]
+            )
+            f_I.append(R_BI@f_B)
+            ri = self.ri[i]
+            t.append(-rT*(u[i*4+0] + u[i*4+1] - u[i*4+2] - u[i*4+3]) + ri[0]*f_B[1] - ri[1]*f_B[0])
+
+        F = cs.vertcat(
+            sum(f_I),
+            sum(t)
         )
-        f_I = R_BI@f_B
-        t = -rT*(u[0] + u[1] - u[2] - u[3])
-        F = cs.vertcat(f_I, t)
         
         # Dynamics
         M = cs.vertcat(
@@ -113,7 +125,8 @@ if __name__ == "__main__":
     inertia = .1594
     max_thrust = 1.5
     moment_arm = .12
-    cg = np.array([.068,0])
+    cg = np.array([0,0])
+    floatbot_positions = [np.vstack([-.15,0]), np.vstack([.15,0])]
     
     # States
     rx = 0
@@ -127,13 +140,13 @@ if __name__ == "__main__":
     x = np.array([rx, ry, qw, qz, vx, vy, omg])
     
     # Control inputs
-    u = np.array([0, 0, 0, 0, 0, 0, 0, 0])
+    u = np.array([0, 0, 0, 0, 1, 0, 0, 0])
     
-    floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
+    superstructure_model = FloatbotModel(mass, inertia, moment_arm, cg, floatbot_positions)
     
     # Compute the state derivatives for the initial conditions
     for i in range(10):
-        xdot = floatbot_model.xdot(x, u)
+        xdot = superstructure_model.xdot(x, u)
         x = x + .1*xdot
         
         # Normalize quaternion

@@ -32,7 +32,7 @@ class FloatbotMPC():
         
         # Vector sizes
         self.nx = 7 # number of states
-        self.nu = 4 # number of control inputs
+        self.nu = 4*model.n # number of control inputs
         self.nd = self.nx*(H+1) + self.nu*H # number of decision variables
         self.ng = self.nx*(H+1) # number of constraint equations
         
@@ -174,17 +174,18 @@ class FloatbotMPC():
 if __name__ == "__main__":
     from model import FloatbotModel
     
-    # Floatbot parameters
+    # Floatbot Parameters
     mass = 16.8
     inertia = .1594
     max_thrust = 1.5
     moment_arm = .12
-    cg = np.array([.068, 0])
+    cg = np.array([0,0])
+    ri = [np.array([-.15,0]), np.array([.15,0])]
     
     # States
     rx = 0
     ry = 0
-    tht = np.pi/2
+    tht = 1*np.pi/2
     qw = np.cos(tht/2)
     qz = np.sin(tht/2)
     vx = 0
@@ -207,9 +208,9 @@ if __name__ == "__main__":
     dt = .1
     H = 20
     Q = np.diag([5e1,5e1,8e3,1e1,1e1,1e1])
-    R = 1e-1*np.eye(4)
+    R = 1e-1*np.eye(8)
     
-    floatbot_model = FloatbotModel(mass, inertia, max_thrust, moment_arm, cg)
-    floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R)
+    floatbot_model = FloatbotModel(mass, inertia, moment_arm, cg, ri)
+    floatbot_mpc = FloatbotMPC(floatbot_model, x_cmd, dt, H, Q, R, 1.5)
     u = floatbot_mpc.solve(x)
     print(u)
