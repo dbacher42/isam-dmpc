@@ -70,11 +70,6 @@ class DMPC_Sim():
             elapsed = time_module.time() - step_start
             step_times.append(elapsed)
             
-            # Print timing info every 10 steps
-            if i % 10 == 0:
-                avg_time = sum(step_times[-10:]) / min(len(step_times), 10)
-                print(f"Step {i}: {elapsed:.3f}s (avg: {avg_time:.3f}s, target: {self.dt:.3f}s)")
-            
             # Enforce real-time if desired
             if real_time:
                 time_module.sleep(.002) # default MuJoCo time step
