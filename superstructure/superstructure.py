@@ -104,7 +104,7 @@ class Superstructure_2D:
         # ---
         
         # Compile later in sim exec
-        return STRUCTURE
+        self.spec = STRUCTURE
     
 
 # ---

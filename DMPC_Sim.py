@@ -193,11 +193,11 @@ class DMPC_Sim():
     def build_superstructure(self, blocks, connections): 
         
         # Build
-        structure = Superstructure_2D()
-        STRUCTURE = structure.generate_model(blocks, connections)
+        self.structure = Superstructure_2D()
+        self.structure.generate_model(blocks, connections)
         
         # Add to spec 
-        self.env.attach(STRUCTURE, frame=self.env.worldbody.add_frame())
+        self.env.attach(self.structure.spec, frame=self.env.worldbody.add_frame())
         self.ready = False 
 
 
