@@ -58,7 +58,8 @@ class Agent():
             H = controller_params.get('H', 20)
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
-            self.controller = FloatbotMPC(self.model, x_cmd, self.dt, H, Q, R)
+            max_thrust = controller_params.get('max_thrust', 1.5)
+            self.controller = FloatbotMPC(self.model, x_cmd, self.dt, H, Q, R, max_thrust)
 
         elif controller_type == 'LQR':
             Q = controller_params.get('Q', np.eye(6))

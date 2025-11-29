@@ -305,7 +305,7 @@ class Cartographer:
             
         # Prepare data
         n_steps = len(agent.x_history)
-        dt = 0.1  # TODO: Get from simulation
+        dt = 0.002  # TODO: Get from simulation
         time = np.arange(n_steps) * dt
         x_hist = np.array(agent.x_history)
         x_cmd = agent.controller.x_cmd

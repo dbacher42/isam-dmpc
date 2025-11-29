@@ -28,6 +28,7 @@ class DMPC_Sim():
         self.dt     = dt 
         self.agents = []
         self.ready  = False
+        self.last_control_time = 0
 
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
@@ -56,12 +57,12 @@ class DMPC_Sim():
         if render:
             self._start_viewer()
         
-        N_steps = int(time / self.dt)
         start_time = time_module.time()
         
         step_times = []
         
-        for i in range(N_steps):
+        i = 0
+        while self.data.time <= time:
             step_start = time_module.time()
             
             self._step()
@@ -76,9 +77,9 @@ class DMPC_Sim():
             
             # Enforce real-time if desired
             if real_time:
-                sleep_time = self.dt - elapsed
-                if sleep_time > 0:
-                    time_module.sleep(sleep_time)
+                time_module.sleep(.002) # default MuJoCo time step
+
+            i += 1
         
         if render:
             # Keep viewer open a bit longer
@@ -98,11 +99,13 @@ class DMPC_Sim():
         truth  = self.Oracle.data
         t_hist = self.Oracle.t_hist
 
-        # Part 1: Collect all control inputs 
-        for agent in self.agents:
-            u = agent.step_control()
-            agent._apply_mjc_control(self.data)          # self.data is from MJC sim  
-            truth[agent.name]['control'].append(u)
+        # Part 1: Run agent controllers every dt seconds
+        if self.data.time >= self.last_control_time + self.dt:
+            for agent in self.agents:
+                u = agent.step_control()
+                agent._apply_mjc_control(self.data)          # self.data is from MJC sim  
+                truth[agent.name]['control'].append(u)
+            self.last_control_time = self.data.time
         
         # Part 2: Synchronous MJC update 
         mujoco.mj_step(self.model, self.data)
@@ -113,7 +116,7 @@ class DMPC_Sim():
             truth[agent.name]['state'].append(x)
 
         # Time history stored in Oracle too
-        t_hist.append(t_hist[-1] + self.dt)
+        t_hist.append(self.data.time)
 
         # Render if viewer is active
         if self.viewer is not None:
