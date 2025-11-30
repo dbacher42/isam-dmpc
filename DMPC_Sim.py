@@ -1,5 +1,7 @@
 # DMPC_Sim.py - Simulation Executive
 
+import numpy as np
+
 from agents         import *
 from superstructure import *
 from worlds         import *
@@ -251,6 +253,27 @@ class DMPC_Sim():
             if body_id >= 0:
                 positions[bid] = self.data.xpos[body_id].copy()
         return positions
+
+    # ---
+
+    def get_attachment_points(self, block_id=None, z_offset=-0.5):
+        """
+             Get attachment points for docking agents below structure blocks.
+
+             NOTE: will be expanded in the future once agents can dock at different faces 
+                   / exist in-plane with the structure rather than below it. For now, agents
+                   just dock below each block. 
+        """
+        
+        positions = self.get_block_positions(block_id)
+        
+        if block_id is not None:
+            # Single block - positions is already np.array
+            return np.array([positions[0], positions[1], z_offset])
+        
+        # All blocks - positions is dict
+        return {bid: np.array([pos[0], pos[1], z_offset]) 
+                for bid, pos in positions.items()}
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
