@@ -256,7 +256,7 @@ class DMPC_Sim():
 
     # ---
 
-    def get_attachment_points(self, block_id=None, z_offset=-0.5):
+    def get_attachment_points(self, block_id=None, z_offset=-1.0):
         """
              Get attachment points for docking agents below structure blocks.
 
@@ -278,7 +278,7 @@ class DMPC_Sim():
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
 
-    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
+    def build_agent(self, name, model, x0, controller_type='MPC', z_offset=-1.0, **controller_params):
         """
             Build and return an agent with the specified system model, 
             initial state, and controller + parameters. 
@@ -288,12 +288,12 @@ class DMPC_Sim():
 
         agent = Agent(model, self.dt, x0, name=name)
         agent.build_controller(controller_type, controller_params)
-        self.add_agent(agent)
+        self.add_agent(agent, z_offset)
         return agent
     
     # ---
 
-    def add_agent(self, agent):
+    def add_agent(self, agent, z_offset=-1.0):
         """
             Add an agent to the simulation and track data in the Oracle.
         """
@@ -303,7 +303,7 @@ class DMPC_Sim():
         self.Oracle.add_agent(agent)
         
         # Add to MJC 
-        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame())
+        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, z_offset]))
         self.ready = False 
 
 
