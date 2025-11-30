@@ -105,7 +105,7 @@ class Superstructure_2D:
         
         # Compile later in sim exec
         self.spec = STRUCTURE
-        self.block_ids = [b.id for b in blocks]
+        self.blocks = {b.id: b for b in blocks}  # Store blocks for geometry lookup
     
 
 # ---
