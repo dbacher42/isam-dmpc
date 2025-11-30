@@ -35,7 +35,7 @@ class DMPC_Sim():
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
 
-        self._start_env()
+        self._start_env() 
         
     # --- 
 
@@ -248,7 +248,7 @@ class DMPC_Sim():
         
         # All blocks by default
         positions = {}
-        for bid in self.structure.block_ids:
+        for bid in self.structure.blocks:
             body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, bid)
             if body_id >= 0:
                 positions[bid] = self.data.xpos[body_id].copy()
@@ -256,29 +256,41 @@ class DMPC_Sim():
 
     # ---
 
-    def get_attachment_points(self, block_id=None, z_offset=-1.0):
+    def get_attachment_points(self, block_id=None):
         """
              Get attachment points for docking agents below structure blocks.
 
              NOTE: will be expanded in the future once agents can dock at different faces 
                    / exist in-plane with the structure rather than below it. For now, agents
                    just dock below each block. 
+                   
+             Parameters
+             ----------
+             block_id : str, optional
+                 Specific block ID to query. If None, returns all blocks.
+                 
+             Returns
+             -------
+             dict or np.array
+                 Block positions with Z set to bottom face (for docking target)
         """
-        
         positions = self.get_block_positions(block_id)
         
+        # Target Z is block bottom face
         if block_id is not None:
             # Single block - positions is already np.array
-            return np.array([positions[0], positions[1], z_offset])
+            block_half_height = self.structure.blocks[block_id].size / 2
+            target_z = positions[2] - block_half_height
+            return np.array([positions[0], positions[1], target_z])
         
         # All blocks - positions is dict
-        return {bid: np.array([pos[0], pos[1], z_offset]) 
+        return {bid: np.array([pos[0], pos[1], pos[2] - self.structure.blocks[bid].size / 2]) 
                 for bid, pos in positions.items()}
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
 
-    def build_agent(self, name, model, x0, controller_type='MPC', z_offset=-1.0, **controller_params):
+    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
         """
             Build and return an agent with the specified system model, 
             initial state, and controller + parameters. 
@@ -288,12 +300,12 @@ class DMPC_Sim():
 
         agent = Agent(model, self.dt, x0, name=name)
         agent.build_controller(controller_type, controller_params)
-        self.add_agent(agent, z_offset)
+        self.add_agent(agent)
         return agent
     
     # ---
 
-    def add_agent(self, agent, z_offset=-1.0):
+    def add_agent(self, agent):
         """
             Add an agent to the simulation and track data in the Oracle.
         """
@@ -302,8 +314,12 @@ class DMPC_Sim():
         self.agents.append(agent)
         self.Oracle.add_agent(agent)
         
+        # Compute z_offset if not already set (default: dock to z=0 plane)
+        if agent.z_offset is None:
+            agent.compute_docking_z_offset(target_z=0.0)
+        
         # Add to MJC 
-        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, z_offset]))
+        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, agent.z_offset]))
         self.ready = False 
 
 
