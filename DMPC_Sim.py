@@ -152,7 +152,7 @@ class DMPC_Sim():
 
     # --- 
 
-    def finalize(self, verbose=False):
+    def finalize(self):
         """
             Finalize simulation setup after structure and all agents have been added.
             Perform consistency checks and apply standards across agents. 
@@ -166,15 +166,11 @@ class DMPC_Sim():
         for agent in self.agents:
                 agent._set_mjc_initial_state(self.data)
 
-        # Verbose
-        if verbose:
-            print("=== BODY POSITIONS ===")
-            for agent in self.agents:
-                body_name = f"{agent.name}_floatbot"
-                body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, body_name)
-                if body_id >= 0:
-                    pos = self.data.xpos[body_id]
-                    print(f"{agent.name}: {pos}")
+        # Check agents have Z offset if structure present
+        if hasattr(self, 'structure'):
+            if any(agent.z_offset == 0 for agent in self.agents):
+                print('WARNING: Some agents are in-plane with the structure and may collide.\n' \
+                      'Set a target_z for proper offset and docking function first.') 
 
         # Formatting 
         self.Cartographer._assign_colors(self.agents)
@@ -290,22 +286,26 @@ class DMPC_Sim():
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
 
-    def build_agent(self, name, model, x0, controller_type='MPC', **controller_params):
+    def build_agent(self, name, model, x0, controller_type='MPC', target_z=None, **controller_params):
         """
             Build and return an agent with the specified system model, 
             initial state, and controller + parameters. 
 
             Crucially, enforces a common dt across all agents. 
+
+            target_z is where the top of the agent should align to for docking. The agent
+            internally computes its own z_offset based on its voxel geometry to make sure
+            that its top face matches target_z. 
         """
 
         agent = Agent(model, self.dt, x0, name=name)
         agent.build_controller(controller_type, controller_params)
-        self.add_agent(agent)
+        self.add_agent(agent, target_z=target_z)
         return agent
     
     # ---
 
-    def add_agent(self, agent):
+    def add_agent(self, agent, target_z=None):
         """
             Add an agent to the simulation and track data in the Oracle.
         """
@@ -315,8 +315,8 @@ class DMPC_Sim():
         self.Oracle.add_agent(agent)
         
         # Compute z_offset if not already set (default: dock to z=0 plane)
-        if agent.z_offset is None:
-            agent.compute_docking_z_offset(target_z=0.0)
+        if target_z:
+            agent.compute_docking_z_offset(target_z)
         
         # Add to MJC 
         self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, agent.z_offset]))
