@@ -161,9 +161,13 @@ class DMPC_Sim():
         # Compile  
         self.compile()
 
-        # Initialize all agent states from their x0 values
+        # Initialize agent states from their x0 values
+        # Skip docked agents - their position is determined by the weld constraint
         print(f"Setting initial states for {len(self.agents)} agents...")
         for agent in self.agents:
+            if hasattr(agent, 'docked_to') and agent.docked_to is not None:
+                print(f"  Skipping {agent.name} (docked to {agent.docked_to})")
+            else:
                 agent._set_mjc_initial_state(self.data)
 
         # Check agents have Z offset if structure present
@@ -286,7 +290,7 @@ class DMPC_Sim():
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
 
-    def build_agent(self, name, model, x0, controller_type='MPC', target_z=None, **controller_params):
+    def build_agent(self, name, model, x0, controller_type='MPC', target_z=None, dock_block=None, **controller_params):
         """
             Build and return an agent with the specified system model, 
             initial state, and controller + parameters. 
@@ -295,19 +299,25 @@ class DMPC_Sim():
 
             target_z is where the top of the agent should align to for docking. The agent
             internally computes its own z_offset based on its voxel geometry to make sure
-            that its top face matches target_z. 
+            that its top face matches target_z.
+            
+            dock_block is the block ID to dock to (optional). If provided, the agent is
+            attached at the block's XY position and a weld constraint is created.
         """
 
         agent = Agent(model, self.dt, x0, name=name)
         agent.build_controller(controller_type, controller_params)
-        self.add_agent(agent, target_z=target_z)
+        self.add_agent(agent, target_z=target_z, dock_block=dock_block)
         return agent
     
     # ---
 
-    def add_agent(self, agent, target_z=None):
+    def add_agent(self, agent, target_z=None, dock_block=None):
         """
             Add an agent to the simulation and track data in the Oracle.
+            
+            If dock_block is specified, attaches agent at block's XY position
+            and creates a weld constraint.
         """
 
         # Sim
@@ -318,30 +328,28 @@ class DMPC_Sim():
         if target_z:
             agent.compute_docking_z_offset(target_z)
         
+        # Determine attachment position
+        if dock_block is not None:
+            # Get block position for XY, use agent z_offset for Z
+            block_pos = self.get_block_positions(dock_block)
+            attach_pos = [block_pos[0], block_pos[1], agent.z_offset]
+        else:
+            attach_pos = [0, 0, agent.z_offset]
+        
         # Add to MJC 
-        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, agent.z_offset]))
-        self.ready = False 
+        self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=attach_pos))
+        self.ready = False
+        
+        # Create weld constraint if docking
+        if dock_block is not None:
+            self._create_dock_constraint(agent, dock_block) 
 
     # ---
-
-    def dock_agent(self, agent, block_id):
+    
+    def _create_dock_constraint(self, agent, block_id):
         """
-            Create a weld constraint between an agent's voxel and a structure block.
-            
-            Must be called AFTER add_agent() and BEFORE finalize().
-            The weld locks the relative pose as defined at model compile time,
-            so agent must already be positioned correctly via z_offset.
-            
-            Parameters
-            ----------
-            agent : Agent
-                The agent to dock
-            block_id : str
-                ID of the structure block to dock to (e.g., "block_0_2")
+            Internal: Create a weld constraint between an agent's voxel and a structure block.
         """
-        if self.ready:
-            raise RuntimeError("Cannot dock after finalize(). Call dock_agent() before finalize().")
-
         # Constraint name
         constraint_name = f"dock_{agent.name}"
         
@@ -361,6 +369,36 @@ class DMPC_Sim():
         # Log
         agent.docked_to = block_id
         agent.dock_constraint_name = constraint_name
+        print(f'Docked agent {agent.name} to block {block_id} with constraint {constraint_name}')
+
+    # ---
+
+    def dock_agent(self, agent, block_id):
+        """
+            Create a weld constraint between an agent's voxel and a structure block.
+            
+            NOTE: Prefer using dock_block parameter in build_agent() instead.
+            This method is for cases where agent is already added but needs docking.
+            
+            Must be called AFTER add_agent() and BEFORE finalize().
+            The weld locks the relative pose as defined at model compile time,
+            so agent must already be positioned correctly via z_offset.
+            
+            WARNING: Does not update agent attachment position - agent must already
+            be at correct XY position. Use build_agent(dock_block=...) for automatic
+            positioning.
+            
+            Parameters
+            ----------
+            agent : Agent
+                The agent to dock
+            block_id : str
+                ID of the structure block to dock to (e.g., "block_0_2")
+        """
+        if self.ready:
+            raise RuntimeError("Cannot dock after finalize(). Call dock_agent() before finalize().")
+        
+        self._create_dock_constraint(agent, block_id)
 
 
 
