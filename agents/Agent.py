@@ -249,10 +249,36 @@ class Agent():
 
     def _extract_mjc_state(self, data):
         """
-            Extract current state from MuJoCo data. 
+            Extract current state from MuJoCo data.
+            
+            For docked agents, reads body position/velocity directly since
+            the agent's own joints stay at 0 while the assembly moves via
+            structure joints.
         """
+        import mujoco
         
-        # Read from joints directly 
+        # Check if agent is docked - if so, read body state directly
+        if hasattr(self, 'docked_to') and self.docked_to is not None:
+            # Get body position and orientation from xpos/xquat
+            body_id = mujoco.mj_name2id(data.model, mujoco.mjtObj.mjOBJ_BODY, f"{self.name}_floatbot")
+            
+            rx, ry, rz = data.xpos[body_id]
+            
+            # xquat is [w, x, y, z] - extract planar rotation (w, z)
+            qw, qx, qy, qz = data.xquat[body_id]
+            
+            # Get velocity from cvel (6D spatial velocity: [angular, linear])
+            # For planar: wz is angular[2], vx/vy are linear[0:2]
+            cvel = data.cvel[body_id]
+            wz = cvel[2]  # angular velocity about Z
+            vx = cvel[3]  # linear velocity X
+            vy = cvel[4]  # linear velocity Y
+            
+            self.x_current = np.array([rx, ry, qw, qz, vx, vy, wz])
+            self.x_history.append(self.x_current)
+            return self.x_current
+        
+        # Not docked - read from joints directly 
         X   = data.joint(f"{self.name}_x")
         Y   = data.joint(f"{self.name}_y") 
         THT = data.joint(f"{self.name}_theta")
