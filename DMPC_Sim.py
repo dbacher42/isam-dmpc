@@ -133,6 +133,23 @@ class DMPC_Sim():
 
     # --- 
 
+    def compile(self):
+        """ 
+            Compile the MuJoCo model for the entire simulation. 
+
+            Must be called before running simulation, after all 
+            agents and structures have been added.
+
+            Agent initial states and docking configurations
+            are set in finalize(). 
+        """
+
+        self.model = self.env.compile()
+        self.data  = mujoco.MjData(self.model)
+        mujoco.mj_forward(self.model, self.data)
+
+    # --- 
+
     def finalize(self, verbose=False):
         """
             Finalize simulation setup after structure and all agents have been added.
@@ -140,8 +157,7 @@ class DMPC_Sim():
         """
 
         # Compile  
-        self.model = self.env.compile()
-        self.data  = mujoco.MjData(self.model)
+        self.compile()
 
         # Initialize all agent states from their x0 values
         print(f"Setting initial states for {len(self.agents)} agents...")
@@ -199,6 +215,42 @@ class DMPC_Sim():
         # Add to spec 
         self.env.attach(self.structure.spec, frame=self.env.worldbody.add_frame())
         self.ready = False 
+
+    # ---
+
+    def get_block_positions(self, block_id=None):
+        """
+        Get current position(s) of superstructure blocks from simulation data.
+        
+        Parameters
+        ----------
+        block_id : str, optional
+            Specific block ID to query. If None, returns all blocks.
+            
+        Returns
+        -------
+        dict or np.array
+            If block_id is None: {block_id: np.array([x, y, z])} for all blocks
+            If block_id specified: np.array([x, y, z]) for that block
+        """
+        if not hasattr(self, 'data'):
+            raise RuntimeError("Must call compile() before querying block positions")
+        if not hasattr(self, 'structure'):
+            raise RuntimeError("No structure present.")
+            
+        if block_id is not None:
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, block_id)
+            if body_id < 0:
+                raise ValueError(f"Block '{block_id}' not found in model")
+            return self.data.xpos[body_id].copy()
+        
+        # All blocks by default
+        positions = {}
+        for bid in self.structure.block_ids:
+            body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, bid)
+            if body_id >= 0:
+                positions[bid] = self.data.xpos[body_id].copy()
+        return positions
 
 
     # --- --- --- --- --- AGENT MANAGEMENT --- --- --- --- ---
