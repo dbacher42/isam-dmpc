@@ -52,13 +52,21 @@ def run_ring_formation_scenario(
     print(f"=== Ring Formation Scenario ===")
     print(f"Agents: {num_agents}, Horizon: {mpc_horizon}, Time: {sim_time}s")
     
+
     # --- SIMULATION SETUP ---
     sim = DMPC_Sim(dt)
     
-    # Build ring superstructure
-    #blocks, connections = build_ring(size=7)
-    #sim.build_superstructure(blocks, connections)
+
+    # --- SUPERSTRUCTURE ---
+
+    # Build ring 
+    blocks, connections = build_ring(size=7)
+    sim.build_superstructure(blocks, connections)
+    sim.compile()
     
+    # Attachment points 
+    positions = sim.get_block_positions()
+
     # --- AGENT CONFIGURATION ---
     
     # Cardinal directions
@@ -102,6 +110,7 @@ def run_ring_formation_scenario(
     # Controller types (1: MPC, 0: LQR)
     control = [1, 1, 1, 1, 1, 1, 1, 1]
     
+
     # --- BUILD AGENTS ---
     
     for i in range(min(num_agents, len(x0s))):
@@ -120,11 +129,13 @@ def run_ring_formation_scenario(
         sim.build_agent(name, model, x0, ctrl_type, **ctrl_params)
         print(f"  Built {name}: {x0[:2]} → {x_cmd[:2]}")
     
+
     # --- RUN SIMULATION ---
     
     sim.finalize(True)
     sim.run(sim_time, render=render, real_time=real_time)
     
+
     # --- RESULTS ---
     
     print("\\n=== Final States ===")
@@ -135,6 +146,7 @@ def run_ring_formation_scenario(
         print(f"{name}: {start_pos.round(2)} → {final_pos.round(2)} (moved: {distance:.2f})")
     
     return sim
+
 
 # --- CONVENIENCE FUNCTIONS ---
 
