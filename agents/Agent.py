@@ -115,16 +115,48 @@ class Agent():
 
     def _build_mjc_model(self):
         """ 
-            Build MuJoCo model for this agent. 
+            Build MuJoCo model for this agent and extract geometry. 
         """
         
         path = os.path.join(os.path.dirname(__file__), 'mujoco_agent.xml')
         spec = mujoco.MjSpec.from_file(path)
         
+        # Extract voxel geometry from spec
+        self._extract_geometry(spec)
+        
         # Don't set base.name here - let _rename_spec handle it
         # Store spec now, compile in main sim later 
         self.spec = spec 
         self._rename_spec()
+    
+    # ---
+
+    def _extract_geometry(self, spec):
+        """
+            Extract voxel geometry from MjSpec for docking calculations.
+        """
+        # Find floatbot body and voxel child
+        floatbot = spec.worldbody.first_body()
+        
+        # Find voxel body (child of floatbot)
+        voxel_body = floatbot.first_body()
+        while voxel_body is not None:
+            if 'voxel' in voxel_body.name:
+                break
+            voxel_body = voxel_body.next_body()
+        
+        if voxel_body is None:
+            raise RuntimeError("Could not find voxel body in agent XML")
+        
+        # Extract voxel local position (relative to floatbot)
+        self.voxel_local_z = voxel_body.pos[2]
+        
+        # Extract voxel geom half-height (box size[2])
+        voxel_geom = voxel_body.first_geom()
+        if voxel_geom is None:
+            raise RuntimeError("Could not find voxel geom in agent XML")
+        
+        self.voxel_half_height = voxel_geom.size[2]
 
     # --- 
 
