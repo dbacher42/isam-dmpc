@@ -24,7 +24,7 @@ def angle_to_quat(angle):
 
 def run_docking_test(
     dt=0.1, 
-    sim_time=10.0, 
+    sim_time=25.0, 
     mpc_horizon=10, 
     render=True, 
     real_time=True,
@@ -82,7 +82,7 @@ def run_docking_test(
     dock_blocks = ['block_2_4', 'block_2_0', 'block_4_2', 'block_0_2']
     
     # Cardinal directions (heading facing inward toward ring center)
-    headings = [np.pi/2, np.pi/2, np.pi/2, np.pi/2]  # all N
+    headings = [0] * 4 # [np.pi/2, np.pi/2, np.pi/2, np.pi/2]  # all N
     
     # Floatbot model parameters
     mass = 18.48
