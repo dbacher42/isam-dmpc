@@ -322,6 +322,46 @@ class DMPC_Sim():
         self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=[0, 0, agent.z_offset]))
         self.ready = False 
 
+    # ---
+
+    def dock_agent(self, agent, block_id):
+        """
+            Create a weld constraint between an agent's voxel and a structure block.
+            
+            Must be called AFTER add_agent() and BEFORE finalize().
+            The weld locks the relative pose as defined at model compile time,
+            so agent must already be positioned correctly via z_offset.
+            
+            Parameters
+            ----------
+            agent : Agent
+                The agent to dock
+            block_id : str
+                ID of the structure block to dock to (e.g., "block_0_2")
+        """
+        if self.ready:
+            raise RuntimeError("Cannot dock after finalize(). Call dock_agent() before finalize().")
+
+        # Constraint name
+        constraint_name = f"dock_{agent.name}"
+        
+        # Target body
+        voxel_body = f"{agent.name}_voxel"
+        
+        # Add weld equality constraint to spec
+        eq = self.env.add_equality(
+            name=constraint_name,
+            objtype=mujoco.mjtObj.mjOBJ_BODY
+        )
+        eq.type = mujoco.mjtEq.mjEQ_WELD
+        eq.name1 = block_id                  
+        eq.name2 = voxel_body               
+        eq.active = True                    
+        
+        # Log
+        agent.docked_to = block_id
+        agent.dock_constraint_name = constraint_name
+
 
 
 
