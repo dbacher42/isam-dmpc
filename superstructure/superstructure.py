@@ -16,9 +16,10 @@ class Superstructure_2D:
         joint definitions.
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, block_mass=10.0):
 
         self.name = name
+        self.block_mass = block_mass  # Mass per block in kg
 
         # Formatting
         self.block_rgba = [0.2, 0.7, 0.9, 1.0]  
@@ -53,7 +54,8 @@ class Superstructure_2D:
         base.add_geom(
                       type=mujoco.mjtGeom.mjGEOM_BOX,
                       size=[root.size/2, root.size/2, root.size/2],
-                      rgba=self.block_rgba
+                      rgba=self.block_rgba,
+                      mass=self.block_mass
                      )
         
         # Enforce planar motion for entire structure 
@@ -97,7 +99,8 @@ class Superstructure_2D:
             child.add_geom(
                            type=mujoco.mjtGeom.mjGEOM_BOX,                                 # NO joints, RIGID by default 
                            size=[child_block.size/2, child_block.size/2, child_block.size/2],
-                           rgba=self.block_rgba
+                           rgba=self.block_rgba,
+                           mass=self.block_mass
                           )
             added[child_id] = child
         
