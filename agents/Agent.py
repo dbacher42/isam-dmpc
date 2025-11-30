@@ -30,6 +30,7 @@ class Agent():
         self.name       = name
         self.model      = model
         self.dt         = dt
+        self.z_offset   = 0          # For docking underneath blocks 
 
         # Initialize data lists
         self.t_history = [0]
@@ -40,8 +41,34 @@ class Agent():
         self.x_current = x0
         self.u_current = np.zeros(8)
 
-        # MJC
+        # MJC - also extracts geometry from XML
         self._build_mjc_model()
+
+    # ---
+
+    def compute_docking_z_offset(self, target_z):
+        """
+            Compute Z offset for docking below a target plane/position.
+            
+            Places agent such that voxel top face aligns with target_z.
+            
+            Parameters
+            ----------
+            target_z : float
+                Z position of the docking surface (e.g., block bottom face)
+                Default 0.0 assumes block center at origin with half-height 0.5,
+                so block bottom is at -0.5. For that case, pass target_z=-0.5.
+                
+            Returns
+            -------
+            float
+                Z offset for agent frame placement
+        """
+
+        # Agent voxel top needs to align with target_z
+        voxel_top_local = self.voxel_local_z + self.voxel_half_height
+        self.z_offset = target_z - voxel_top_local
+        return self.z_offset
     
     # --- 
 
