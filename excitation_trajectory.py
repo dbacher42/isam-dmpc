@@ -130,11 +130,16 @@ def x_error(x, xr):
     return e
 
 # real mass properties
-m = 16.8
-Jzz = .1594
-rho_x = 0
-rho_y = .068
+m = 23.52
+Jzz = .4746
+rho_x = .0389
+rho_y = 0
 params = np.vstack([m, rho_x, rho_y, Jzz])
+m = 26.88
+Jzz = 1.647
+rho_x = .1063
+rho_y = 0
+params_new = np.vstack([m, rho_x, rho_y, Jzz])
 u_max = 1.5
 r = .12
 
@@ -165,7 +170,7 @@ h = 20
 dt = .5
 Q = np.diag([5e1, 5e1, 8e1, 1e1, 1e1, 1e1])
 R = 1e-1*np.eye(4)
-l = np.vstack([1000, 100, 100, 100])
+l = np.vstack([1,1,1,1])
 sig = .01*np.eye(7)
 
 # vector sizes
@@ -207,7 +212,7 @@ for k in range(h):
     F += phi.T@cs.inv(sig)@phi
 
     # running cost
-    cost += e.T@Q@e + U[:,k].T@R@U[:,k]
+    cost += e.T@Q@e + U[:,k].T@R@U[:,k] + l.T@cs.diag(cs.inv(F))
 
     # dynamics constraint
     X_next = X[:,k] + dt*x_dot(X[:,k],U[:,k],params)
@@ -218,7 +223,7 @@ for k in range(h):
 
 # terminal cost
 e = x_error(X[:,h], xr)
-cost += e.T@Q@e + l.T@cs.diag(cs.inv(F))
+cost += e.T@Q@e
 
 # assemble decision and constraint vectors
 opt_vars = cs.vertcat(cs.reshape(X, -1, 1), cs.reshape(U, -1, 1))
@@ -275,18 +280,24 @@ for i in range(h):
     u_opt.append(sol_opt[nx*(h+1)+nu*i:nx*(h+1)+nu*(i+1)])
     t_opt.append(i*dt)
 
-fig, axs = plt.subplots(3,2)
+fig, axs = plt.subplots(3,2,figsize=(10,6))
 axs[0,0].plot(t_opt, px_opt)
+axs[0,0].set_xlabel('time')
 axs[0,0].set_ylabel('x position')
 axs[1,0].plot(t_opt, py_opt)
+axs[1,0].set_xlabel('time')
 axs[1,0].set_ylabel('y position')
 axs[2,0].plot(t_opt, qz_opt)
+axs[2,0].set_xlabel('time')
 axs[2,0].set_ylabel('z quaternion')
 axs[0,1].plot(t_opt, vx_opt)
+axs[0,1].set_xlabel('time')
 axs[0,1].set_ylabel('x velocity')
 axs[1,1].plot(t_opt, vy_opt)
+axs[1,1].set_xlabel('time')
 axs[1,1].set_ylabel('y velocity')
 axs[2,1].plot(t_opt, wz_opt)
+axs[2,1].set_xlabel('time')
 axs[2,1].set_ylabel('z angular velocity')
 plt.show()
 
@@ -296,7 +307,7 @@ A = np.zeros([3*h, 4])
 # Execute the trajectory and estimate the mass properties
 x_hat = np.array(x0)
 for k in range(h):
-    acc = x_dot(x_hat, u_opt[k], params)
+    acc = x_dot(x_hat, u_opt[k], params_new)
 
     # Assemble the measurement matrix for this time step
     F = mixer(u_opt[k], rot(x_hat[2], x_hat[3]))
@@ -321,7 +332,7 @@ for k in range(h):
 # estimate using least-squares pseudoinverse
 b = np.array(b)
 A = np.array(A)
-tht_hat = np.linalg.inv(A.T@A)@A.T@b
+tht_hat = np.linalg.pinv(A)@b
 print(1/tht_hat[0])
 print(tht_hat[1])
 print(tht_hat[2])

@@ -367,7 +367,7 @@ for k in range(h):
     x_hat = x_hat + acc * dt
 
     
-    tht_hat = np.linalg.inv(G.T @ G) @ (G.T @ H)
+    tht_hat = np.linalg.inv(A.T @ A) @ (A.T @ b)
 
 
     mass[k]    = 1 / tht_hat[0]
@@ -392,12 +392,12 @@ print(mass)
 
 
 fig, axs = plt.subplots(2,2)
-axs[0,0].plot(t_opt, mass)
+axs[0,0].plot(t_opt[1:], mass[1:])
 axs[0,0].set_ylabel('mass estimate')
-axs[1,0].plot(t_opt, rho_x_hat)
+axs[1,0].plot(t_opt[1:], rho_x_hat[1:])
 axs[1,0].set_ylabel('x cg offset estimate')
-axs[0,1].plot(t_opt, rho_y_hat)
+axs[0,1].plot(t_opt[1:], rho_y_hat[1:])
 axs[0,1].set_ylabel('y cg offset estimate')
-axs[1,1].plot(t_opt, Jzz_hat)
+axs[1,1].plot(t_opt[1:], Jzz_hat[1:])
 axs[1,1].set_ylabel('z moment of inertia estimate')
 plt.show()
