@@ -144,7 +144,7 @@ class Basic_MPC():
     
     # --- 
 
-    def solve(self, x):
+    def solve(self, x, model):
         '''
         Solve the nonlinear OCP for one timestep
 

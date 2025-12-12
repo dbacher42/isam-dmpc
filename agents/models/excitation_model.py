@@ -88,7 +88,7 @@ class excitation_model():
             
             return R
 
-         # extract states
+        # extract states
         qw = x[2]
         qz = x[3]
         vx = x[4]
@@ -96,10 +96,10 @@ class excitation_model():
         wz = x[6]
 
         # extract parameters
-        m = tht[0]
+        m    = tht[0]
         rhox = tht[1]
         rhoy = tht[2]
-        Jzz = tht[3]
+        Jzz  = tht[3]
 
         # rotation matrix
         R = rot(qw, qz)
@@ -109,7 +109,7 @@ class excitation_model():
 
         # dynamics
         rho_B = cs.vertcat(rhox, rhoy)
-        rho_I = R*rho_B
+        rho_I = R@rho_B
         M = cs.vertcat(
             cs.horzcat(m, 0, -m*rho_I[1]),
             cs.horzcat(0, m, m*rho_I[0]),

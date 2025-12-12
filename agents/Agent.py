@@ -95,8 +95,10 @@ class Agent():
             H = controller_params.get('H', 20)
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
+            l = controller_params.get('lambda_fim', np.ones(4))
+            s = controller_params.get('covariance', np.ones(4))
             max_thrust = controller_params.get('max_thrust', 1.5)
-            self.controller = Excitation_MPC(self.model, x_cmd, self.dt, H, Q, R, max_thrust)
+            self.controller = Excitation_MPC(x_cmd, self.dt, H, Q, R, l, s, max_thrust)
 
         elif controller_type == 'LQR':
             Q = controller_params.get('Q', np.eye(6))
@@ -118,7 +120,7 @@ class Agent():
         control_law = self.controller.solve
         
         # Compute control input
-        self.u_current = control_law(self.x_current)
+        self.u_current = control_law(self.x_current, self.model)
         self.u_history.append(self.u_current)
         return self.u_current
 

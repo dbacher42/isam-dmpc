@@ -4,15 +4,24 @@ import numpy as np
 
 class Excitation_MPC():
     
-    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), lambda_fim=np.ones(4), covariance=0.01*np.eye(7), max_thrust=np.inf):
+    def __init__(self, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), lambda_fim=np.ones(4), covariance=0.01*np.eye(7), max_thrust=np.inf):
         '''
         EXCITATION MPC Class 
 
         Adds information parameters to the controller to generate excitation trajectories. 
+        
+        Uses the current data in .model to as the estimate of the mass properties, and uses
+        these while integrating the dynamics in the cost function. 
 
+        That means that the .solver is rebuilt each timestep when solve() is called, and the 
+        agents solve the OCP using their most recent mass property estimates.
+
+        This also makes the code cleaner: now the controller doesn't need to separately keep track of the model; 
+        the parent Agent() will just pass a .model directly to solve().
+        
         Parameters
         ----------
-        model : floatbot kinematics and dynamics model
+        x0 : initial state
         x_cmd : commanded states
         dt : time step
         H : time horizon
@@ -29,7 +38,6 @@ class Excitation_MPC():
         '''
 
         # Parameters
-        self.model = model
         self.x_cmd = x_cmd
         self.dt = dt
         self.H = H
@@ -38,7 +46,7 @@ class Excitation_MPC():
         self.lambda_fim = lambda_fim
         self.covariance = covariance
         self.u_max = max_thrust
-        self.name  = 'MPC'
+        self.name  = 'Excitation_MPC'
         
         # Vector sizes
         self.nx = 7                         # states
@@ -62,17 +70,26 @@ class Excitation_MPC():
         self.lbg = np.zeros(self.ng)
         self.ubg = np.zeros(self.ng)
         
-        # Set up the solver
-        self.solver = self.setup()
-    
     # --- 
 
-    def setup(self):
-        '''
-        Create the nonlinear OCP solver
-        '''
+    def get_mass_params(self, model):
+        """
+            Extract the current mass property estimates from the model
+
+            Note: rotation of cg to inertial frame happens automatically inside xdot 
+        """
+
+        return np.vstack([model.mass, model.cg[0], model.cg[1], model.inertia])
+
+    # ---
+
+    def setup(self, tht0, model):
+        """
+            Create the nonlinear OCP solver
+        """
+
         # Extract parameters
-        xdot = self.model.xdot
+        xdot = model.xdot
         X_cmd = cs.DM(self.x_cmd)
         dt = self.dt
         H = self.H
@@ -106,7 +123,7 @@ class Excitation_MPC():
         g.append(X[:,0] - X0)
         
         # Loop over time horizon to build cost function and constraints
-        f = lambda x, u: x + dt*xdot(x,u) # Discretized dynamics using Euler integration
+        f = lambda x, u, tht: x + dt*xdot(x,u,tht) # Discretized dynamics using Euler integration
         
         for k in range(H):    
 
@@ -120,11 +137,11 @@ class Excitation_MPC():
             cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k] + self.lambda_fim@cs.diag(cs.inv(F))
             
             # Dynamics constraint: next state equals current state plus discrete dynamics
-            X_next = f(X[:,k], U[:,k])
+            X_next = f(X[:,k], U[:,k], tht0)
             g.append(X[:,k+1] - X_next)
 
             # Update PHI
-            PHI += dt*(Jx_k(X[:,k],U[:,k],params)@PHI + Jtht_k(X[:,k],U[:,k],params))
+            PHI += dt*(Jx_k(X[:,k],U[:,k],tht0)@PHI + Jtht_k(X[:,k],U[:,k],tht0))
             
         # Terminal cost on the final state
         X_err = self.error(X[:,H], X_cmd) 
@@ -177,7 +194,7 @@ class Excitation_MPC():
     
     # --- 
 
-    def solve(self, x):
+    def solve(self, x_current, model):
         '''
         Solve the nonlinear OCP for one timestep
 
@@ -191,14 +208,21 @@ class Excitation_MPC():
             x[4] : x velocity in the body frame (m/s)
             x[5] : y velocity in the vody frame (m/s)
             x[6] : z axis rotational velocity (rad/s)
-        
+
+        model: dynamics model 
+            * used to extract mass property estimates 
+            
         Returns
         -------
         u : 8x1 control vector
             thruster actuation (fraction of max thrust)
         '''
+
+        # Build the solver using current mass property estimates
+        tht0 = self.get_mass_params(model)
+        self.solver = self.setup(tht0, model)
+
         # Extract parameters
-        solver = self.solver
         H = self.H
         lbx = self.lbx
         ubx = self.ubx
@@ -206,7 +230,7 @@ class Excitation_MPC():
         ubg = self.ubg
         
         # Solve the OCP for the current state
-        sol = solver(p=x, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+        sol = self.solver(p=x_current, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
         sol_opt = sol['x'].full().flatten()
 
         # Extract the first control action from the sequence
