@@ -1,13 +1,9 @@
 # scenarios/__init__.py
 
 """
-Simulation scenarios for DMPC testing and validation.
-
-Available scenarios:
-- ring_formation: Multi-agent formation control around a ring structure
-- (add more as developed)
+    Simulation scenarios for DMPC testing and validation.
 """
 
-# Import common scenario utilities here if needed
-
-from .ring_formation import run_ring_formation_scenario
+from .estimate_simple_dock import run_test as run_estimate_simple_dock
+from .estimate_simple_ring import run_test as run_estimate_simple_ring
+from .estimate_random_structure import run_test as run_estimate_random_structure

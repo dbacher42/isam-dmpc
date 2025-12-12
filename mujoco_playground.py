@@ -15,10 +15,8 @@ from scenarios import *
 
 # -------------------------------------------------------------------------------------------------
 
-sim = run_ring_formation_scenario()
-
-sim.plot_trajectories()
-sim.plot_states()
-sim.plot_controls()
+# basic = run_estimate_simple_dock()
+# ring  = run_estimate_simple_ring()
+# rand  = run_estimate_random_structure()
 
 a = 0

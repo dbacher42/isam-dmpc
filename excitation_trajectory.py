@@ -210,7 +210,7 @@ for k in range(h):
 
     # compute fisher information matrix
     F += phi.T@cs.inv(sig)@phi
-
+ 
     # running cost
     cost += e.T@Q@e + U[:,k].T@R@U[:,k] + l.T@cs.diag(cs.inv(F))
 
@@ -313,18 +313,21 @@ for k in range(h):
     F = mixer(u_opt[k], rot(x_hat[2], x_hat[3]))
 
     b[3*k,0] = acc[4]
-    b[3*k+1,0] = acc[5]
+    b[3*k+1,0] = acc[5] # *1
 
     A[3*k,0] = F[0]
     A[3*k+1,0] = F[1]
     A[3*k+2,0] = F[2]
+
     A[3*k,1] = x_hat[6]**2
-    A[3*k+1,1] = acc[6]
-    A[3*k+2,1] = -acc[5]
-    A[3*k,2] = acc[6]
+    A[3*k+1,1] = acc[6]  # '2
+    A[3*k+2,1] = -acc[5] # *1 
+
+    A[3*k,2] = acc[6]    # '2
     A[3*k+1,2] = x_hat[6]**2
     A[3*k+2,2] = acc[4]
-    A[3*k+2,3] = -acc[6]
+
+    A[3*k+2,3] = -acc[6] # '2
 
     # Propogate the trajectory
     x_hat = x_hat + acc*dt
