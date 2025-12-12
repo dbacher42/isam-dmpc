@@ -81,12 +81,22 @@ class Agent():
             raise ValueError("Controller must be provided a reference state 'x_cmd'")
         x_cmd = controller_params['x_cmd']
 
-        if controller_type == 'MPC':
+        if controller_type not in ['LQR','Basic_MPC','Excitation_MPC']:
+            raise ValueError(f"Unknown controller type '{controller_type}'")
+
+        if controller_type == 'Basic_MPC':
             H = controller_params.get('H', 20)
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
             max_thrust = controller_params.get('max_thrust', 1.5)
-            self.controller = FloatbotMPC(self.model, x_cmd, self.dt, H, Q, R, max_thrust)
+            self.controller = Basic_MPC(self.model, x_cmd, self.dt, H, Q, R, max_thrust)
+
+        elif controller_type == 'Excitation_MPC':
+            H = controller_params.get('H', 20)
+            Q = controller_params.get('Q', np.eye(6))
+            R = controller_params.get('R', np.eye(4))
+            max_thrust = controller_params.get('max_thrust', 1.5)
+            self.controller = Excitation_MPC(self.model, x_cmd, self.dt, H, Q, R, max_thrust)
 
         elif controller_type == 'LQR':
             Q = controller_params.get('Q', np.eye(6))
