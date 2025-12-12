@@ -1,9 +1,10 @@
 import numpy as np
 import casadi as cs
+import numpy as np
 
 class Excitation_MPC():
     
-    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), max_thrust=np.inf):
+    def __init__(self, model, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), lambda_fim=np.ones(4), covariance=0.01*np.eye(7), max_thrust=np.inf):
         '''
         EXCITATION MPC Class 
 
@@ -19,11 +20,14 @@ class Excitation_MPC():
             optional, he default is np.eye(6)
         R : weight matrix penalizing control effort
             optional, the default is np.eye(8)
+        covariance : weight vector penalizing information parameters
+            optional, the default is np.ones(4)
         bounds : dictionary of bounds on the states in the format:
             'lb_xi' : lower bound on state i
             'ub_xi' : upper bound on state i
             optional, the default is {}
         '''
+
         # Parameters
         self.model = model
         self.x_cmd = x_cmd
@@ -31,18 +35,21 @@ class Excitation_MPC():
         self.H = H
         self.Q = Q
         self.R = R
+        self.lambda_fim = lambda_fim
+        self.covariance = covariance
         self.u_max = max_thrust
         self.name  = 'MPC'
         
         # Vector sizes
-        self.nx = 7 # number of states
-        self.nu = 4 # number of control inputs
-        self.nd = self.nx*(H+1) + self.nu*H # number of decision variables
-        self.ng = self.nx*(H+1) # number of constraint equations
+        self.nx = 7                         # states
+        self.nu = 4                         # control inputs
+        self.ntht = 4                       # information parameters
+        self.nd = self.nx*(H+1) + self.nu*H # decision variables
+        self.ng = self.nx*(H+1)             # constraint equations
         
         # Initialize decision variable bounds at +-inf
         self.lbx = -np.inf*np.ones(self.nd)
-        self.ubx = np.inf*np.ones(self.nd)
+        self.ubx =  np.inf*np.ones(self.nd)
         
         # Set control bounds
         for i in range(H):
@@ -76,9 +83,23 @@ class Excitation_MPC():
         X = cs.SX.sym('X', self.nx, H+1)
         U = cs.SX.sym('U', self.nu, H)
 
+        # Information: partial derivatives of system dynamics w/r/t state 
+        x   = cs.SX.sym('x', self.nx, 1)
+        u   = cs.SX.sym('u', self.nu, 1)
+        tht = cs.SX.sym('tht', self.ntht, 1)
+        
+        Jx     = cs.jacobian(xdot(x, u, tht), x)
+        J_tht  = cs.jacobian(xdot(x, u, tht), tht)
+        Jx_k   = cs.Function('Jx'  , [x,u,tht], [Jx]) 
+        Jtht_k = cs.Function('Jtht', [x,u,tht], [J_tht])
+
+        # Fisher Information 
+        PHI = np.zeros([self.nx, self.ntht]) 
+        F   = np.eye(self.ntht)               # init as identity to avoid singularity 
+
         # Initialize cost function, constraints, and parameters
-        cost = 0 # accumulated cost
-        g = [] # list of constraints
+        cost = 0  # accumulated cost
+        g    = [] # list of constraints
         
         # Initial condition constraint: X0 = current state
         X0 = cs.SX.sym('X0', self.nx)
@@ -88,14 +109,22 @@ class Excitation_MPC():
         f = lambda x, u: x + dt*xdot(x,u) # Discretized dynamics using Euler integration
         
         for k in range(H):    
+
+            # Error 
             X_err = self.error(X[:,k], X_cmd)
             
-            # Cost function: penalize state errors plus control effort
-            cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k]
+            # FIM 
+            F += PHI.T @ cs.inv(self.covariance) @ PHI 
+
+            # Error includes weighted FIM term  
+            cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k] + self.lambda_fim@cs.diag(cs.inv(F))
             
             # Dynamics constraint: next state equals current state plus discrete dynamics
             X_next = f(X[:,k], U[:,k])
             g.append(X[:,k+1] - X_next)
+
+            # Update PHI
+            PHI += dt*(Jx_k(X[:,k],U[:,k],params)@PHI + Jtht_k(X[:,k],U[:,k],params))
             
         # Terminal cost on the final state
         X_err = self.error(X[:,H], X_cmd) 
@@ -125,21 +154,26 @@ class Excitation_MPC():
 
     def error(self, x, x_cmd):
         '''
-        Compute the error between the current and commanded states
+            Compute the error between the current and commanded states
         '''
-        r = cs.vertcat(x[0], x[1])
+
+        # extract states
+        p = cs.vertcat(x[0], x[1])
         q = cs.vertcat(x[2], x[3])
-        v = cs.vertcat(x[4], x[5], x[6])
-        
-        r_cmd = cs.vertcat(x_cmd[0], x_cmd[1])
-        q_cmd = cs.vertcat(x_cmd[2], x_cmd[3])
-        v_cmd = cs.vertcat(x_cmd[4], x_cmd[5], x_cmd[6])
-        
-        re = r - r_cmd
-        qe = 1-(q.T@q_cmd)**2
-        ve = v - v_cmd
-        
-        return cs.vertcat(re, qe, ve)
+        V = cs.vertcat(x[4], x[5], x[6])
+
+        # extract reference states
+        pr = cs.vertcat(x_cmd[0], x_cmd[1])
+        qr = cs.vertcat(x_cmd[2], x_cmd[3])
+        Vr = cs.vertcat(x_cmd[4], x_cmd[5], x_cmd[6])    
+
+        # compute errors
+        ep = pr - p
+        eq = 1 - (q.T@qr)**2
+        eV = Vr - V
+        e = cs.vertcat(ep, eq, eV)
+
+        return e
     
     # --- 
 
