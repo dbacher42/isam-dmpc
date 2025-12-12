@@ -34,6 +34,7 @@ class DMPC_Sim():
 
         self.Oracle       = Oracle()
         self.Cartographer = Cartographer()
+        self.viewer       = None
 
         self._start_env() 
         
@@ -108,9 +109,10 @@ class DMPC_Sim():
         mujoco.mj_step(self.model, self.data)
 
         # Part 3: Extract and update states locally in agent + Oracle  
-        for agent in self.agents:
-            x = agent._extract_mjc_state(self.data)
-            truth[agent.name]['state'].append(x)
+        if self.data.time >= self.last_control_time + self.dt:
+            for agent in self.agents:
+                x = agent._extract_mjc_state(self.data)
+                truth[agent.name]['state'].append(x)
 
         # Time history stored in Oracle too
         t_hist.append(self.data.time)
@@ -178,9 +180,6 @@ class DMPC_Sim():
 
         # Formatting 
         self.Cartographer._assign_colors(self.agents)
-
-        # Optional viewer 
-        self.viewer = None
 
         # Done
         self.ready = True
@@ -340,7 +339,7 @@ class DMPC_Sim():
         self.env.attach(agent.spec, frame=self.env.worldbody.add_frame(pos=attach_pos))
         self.ready = False
         
-        # Create weld constraint if docking
+        # Create weld constraint for docking after adding to spec (in prev step) 
         if dock_block is not None:
             self._create_dock_constraint(agent, dock_block) 
 
