@@ -400,6 +400,54 @@ class DMPC_Sim():
         self._create_dock_constraint(agent, block_id)
 
 
+    # --- --- --- --- --- PARAMETER ESTIMATION --- --- --- --- ---
+
+    def get_composite_mass_properties(self):
+        """
+        Compute composite mass properties for entire system (structure + all agents).
+        
+        Returns mass, CG (world frame), and inertia for the composite system
+        by summing contributions from all bodies in the simulation.
+        
+        Returns
+        -------
+        mass : float
+            Total composite mass (kg)
+        cg : np.array (2,)
+            Composite CG in world frame [x, y] (m)
+        inertia : float
+            Composite z-axis inertia (kg*m^2)
+        """
+        if not self.ready:
+            raise RuntimeError("Must call finalize() and run simulation before extracting mass properties")
+        
+        # Collect masses and positions for all bodies (structure + all agents)
+        masses = []
+        positions = []
+        inertias_local = []
+        
+        for i in range(self.model.nbody):
+            body_name = self.model.body(i).name
+            if body_name == 'world':
+                continue
+            masses.append(self.model.body_mass[i])
+            positions.append(self.data.xpos[i][:2])
+            inertias_local.append(self.model.body_inertia[i][2])  # Izz
+        
+        # Composite mass
+        masses = np.array(masses)
+        positions = np.array(positions)
+        inertias_local = np.array(inertias_local)
+        composite_mass = masses.sum()
+        
+        # Composite CG
+        composite_cg = (masses[:, np.newaxis] * positions).sum(axis=0) / composite_mass
+        
+        # Composite inertia (parallel axis theorem: I = sum(I_local_i + m_i * d_i^2))
+        d_sq = ((positions - composite_cg)**2).sum(axis=1)  # distance^2 from composite CG
+        composite_inertia = (inertias_local + masses * d_sq).sum()
+        
+        return composite_mass, composite_cg, composite_inertia
 
 
     # --- --- --- --- --- PLOTTING WRAPPERS --- --- --- --- ---
