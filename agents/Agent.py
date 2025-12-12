@@ -149,6 +149,142 @@ class Agent():
         self.t_history.append(self.t_history[-1] + dt)
         return self.x_current
 
+    # ---
+
+    def estimate(self, oracle_data=None, update_model=True):
+        """
+            Estimate mass properties from trajectory data using least-squares.
+            
+            Uses trajectory data to build regression:
+                b = A @ theta
+            
+            Where theta = [1/m, rho_x, rho_y, Jzz/m] (transformed parameters)
+            
+            Parameters
+            ----------
+            oracle_data : dict, optional
+                If provided, uses oracle_data['state'] and oracle_data['control']
+                Otherwise uses self.x_history and self.u_history
+            update_model : bool
+                If True, updates self.model with estimated parameters
+                
+            Returns
+            -------
+            tht_hat : 4x1 array
+                Estimated parameters [mass, rho_x, rho_y, Jzz]
+        """
+        
+        # Use Oracle data if provided, otherwise use agent's own history
+        if oracle_data is not None:
+            x_data = oracle_data['state']
+            u_data = oracle_data['control']
+        else:
+            x_data = self.x_history
+            u_data = self.u_history
+        
+        def rot(qw, qz):
+            """2D rotation matrix from quaternion"""
+            return np.array([
+                [qw**2 - qz**2, -2*qw*qz],
+                [2*qw*qz, qw**2 - qz**2]
+            ])
+        
+        def mixer(u, R):
+            """Compute body forces from control inputs"""
+            f_B = np.array([u[0] + u[2], u[1] + u[3]])
+            f_I = R @ f_B
+            tau = self.model.moment_arm * (-u[0] - u[1] + u[2] + u[3])
+            return np.array([f_I[0], f_I[1], tau])
+        
+        # Number of data points (need at least 2 for acceleration)
+        N = len(u_data)
+        if N < 2:
+            raise ValueError("Need at least 2 timesteps of data to estimate")
+        
+        # Debug: check data shapes
+        print(f"DEBUG: N = {N}")
+        print(f"DEBUG: x_data[0] = {x_data[0]}")
+        print(f"DEBUG: x_data[1] = {x_data[1]}")
+        print(f"DEBUG: x_data[4] = {x_data[4]}")
+        print(f"DEBUG: x_data[8] = {x_data[8]}")
+        print(f"DEBUG: x_data[-1] = {x_data[-1]}")
+        print(f"DEBUG: u_data[0] = {u_data[0]}")
+        
+        # Build regression matrices
+        b = np.zeros((3*N, 1))
+        A = np.zeros((3*N, 4))
+        
+        dt = self.dt
+        
+        for k in range(N):
+            # Current state
+            x_k = np.array(x_data[k])
+            qw, qz = x_k[2], x_k[3]
+            wz = x_k[6]
+            
+            # Compute acceleration via finite difference
+            x_next = np.array(x_data[k+1])
+            acc = (x_next - x_k) / dt  # [px_dot, py_dot, qw_dot, qz_dot, vx_dot, vy_dot, wz_dot]
+            
+            # Extract velocity derivatives (accelerations)
+            vx_dot = acc[4]
+            vy_dot = acc[5]
+            wz_dot = acc[6]
+            
+            # Rotation matrix and forces
+            R = rot(qw, qz)
+            F = mixer(np.array(u_data[k]), R)  # F = [fx_inertial, fy_inertial, tau]
+            
+            # Fill regression matrices (following teammate's formulation)
+            # Row indices for this timestep
+            i0, i1, i2 = 3*k, 3*k+1, 3*k+2
+            
+            # b vector (measurements - inertial frame accelerations)
+            b[i0, 0] = vx_dot
+            b[i1, 0] = vy_dot
+            
+            # A matrix columns: [1/m, rho_x, rho_y, Jzz/m]
+            # Column 0: 1/m (multiplies inertial force)
+            A[i0, 0] = F[0]
+            A[i1, 0] = F[1]
+            A[i2, 0] = F[2]
+            
+            # Column 1: rho_x
+            A[i0, 1] = wz**2
+            A[i1, 1] = wz_dot
+            A[i2, 1] = -vy_dot
+            
+            # Column 2: rho_y
+            A[i0, 2] = wz_dot
+            A[i1, 2] = wz**2
+            A[i2, 2] = vx_dot
+            
+            # Column 3: Jzz/m
+            A[i2, 3] = -wz_dot
+        
+        # Solve least squares
+        theta = np.linalg.pinv(A) @ b
+        
+        # Debug: check theta
+        print(f"DEBUG: theta = {theta.flatten()}")
+        print(f"DEBUG: A column norms = {[np.linalg.norm(A[:,i]) for i in range(4)]}")
+        
+        # Transform back to physical parameters
+        mass = 1.0 / theta[0, 0]
+        rho_x = theta[1, 0]
+        rho_y = theta[2, 0]
+        Jzz = theta[3, 0] / theta[0, 0]  # (Jzz/m) / (1/m) = Jzz
+        
+        tht_hat = np.array([mass, rho_x, rho_y, Jzz])
+        
+        # Update model if requested
+        if update_model:
+            self.model.mass = mass
+            self.model.cg = np.array([rho_x, rho_y])
+            self.model.inertia = Jzz
+        
+        return tht_hat
+
 
     # --- --- --- --- --- MUJOCO --- --- --- --- ---
 
@@ -280,11 +416,12 @@ class Agent():
             qw, qx, qy, qz = data.xquat[body_id]
             
             # Get velocity from cvel (6D spatial velocity: [angular, linear])
-            # For planar: wz is angular[2], vx/vy are linear[0:2]
+            # cvel returns [wx, wy, wz, vx_inertial, vy_inertial, vz_inertial]
+            # Note: Despite comments in model code, velocities are actually INERTIAL frame
             cvel = data.cvel[body_id]
             wz = cvel[2]  # angular velocity about Z
-            vx = cvel[3]  # linear velocity X
-            vy = cvel[4]  # linear velocity Y
+            vx = cvel[3]  # linear velocity X in inertial frame
+            vy = cvel[4]  # linear velocity Y in inertial frame
             
             self.x_current = np.array([rx, ry, qw, qz, vx, vy, wz])
             self.x_history.append(self.x_current)
