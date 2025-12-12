@@ -174,6 +174,8 @@ class Agent():
                 Estimated parameters [mass, rho_x, rho_y, Jzz]
         """
         
+        dt = self.dt
+
         # Use Oracle data if provided, otherwise use agent's own history
         if oracle_data is not None:
             x_data = oracle_data['state']
@@ -196,25 +198,16 @@ class Agent():
             tau = self.model.moment_arm * (-u[0] - u[1] + u[2] + u[3])
             return np.array([f_I[0], f_I[1], tau])
         
-        # Number of data points (need at least 2 for acceleration)
+        # --- 
+
+        # Quick check
         N = len(u_data)
         if N < 2:
             raise ValueError("Need at least 2 timesteps of data to estimate")
-        
-        # Debug: check data shapes
-        print(f"DEBUG: N = {N}")
-        print(f"DEBUG: x_data[0] = {x_data[0]}")
-        print(f"DEBUG: x_data[1] = {x_data[1]}")
-        print(f"DEBUG: x_data[4] = {x_data[4]}")
-        print(f"DEBUG: x_data[8] = {x_data[8]}")
-        print(f"DEBUG: x_data[-1] = {x_data[-1]}")
-        print(f"DEBUG: u_data[0] = {u_data[0]}")
-        
-        # Build regression matrices
+    
+        # Mats
         b = np.zeros((3*N, 1))
         A = np.zeros((3*N, 4))
-        
-        dt = self.dt
         
         for k in range(N):
             # Current state
@@ -222,29 +215,26 @@ class Agent():
             qw, qz = x_k[2], x_k[3]
             wz = x_k[6]
             
-            # Compute acceleration via finite difference
+            # Accel taken from state data 
             x_next = np.array(x_data[k+1])
-            acc = (x_next - x_k) / dt  # [px_dot, py_dot, qw_dot, qz_dot, vx_dot, vy_dot, wz_dot]
-            
-            # Extract velocity derivatives (accelerations)
+            acc = (x_next - x_k) / dt  
+    
             vx_dot = acc[4]
             vy_dot = acc[5]
             wz_dot = acc[6]
             
             # Rotation matrix and forces
             R = rot(qw, qz)
-            F = mixer(np.array(u_data[k]), R)  # F = [fx_inertial, fy_inertial, tau]
+            F = mixer(np.array(u_data[k]), R)  
             
-            # Fill regression matrices (following teammate's formulation)
-            # Row indices for this timestep
+            # Fill regression matrices
             i0, i1, i2 = 3*k, 3*k+1, 3*k+2
             
             # b vector (measurements - inertial frame accelerations)
             b[i0, 0] = vx_dot
             b[i1, 0] = vy_dot
             
-            # A matrix columns: [1/m, rho_x, rho_y, Jzz/m]
-            # Column 0: 1/m (multiplies inertial force)
+            # Column 0: 1/m
             A[i0, 0] = F[0]
             A[i1, 0] = F[1]
             A[i2, 0] = F[2]
@@ -273,7 +263,7 @@ class Agent():
         mass = 1.0 / theta[0, 0]
         rho_x = theta[1, 0]
         rho_y = theta[2, 0]
-        Jzz = theta[3, 0] / theta[0, 0]  # (Jzz/m) / (1/m) = Jzz
+        Jzz = -theta[3, 0] / theta[0, 0]  # theta[3] = -(Jzz/m), so Jzz = -theta[3]/(1/m)
         
         tht_hat = np.array([mass, rho_x, rho_y, Jzz])
         
