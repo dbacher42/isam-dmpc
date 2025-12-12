@@ -1,7 +1,8 @@
 import numpy as np
 import casadi as cs
 
-class FloatbotModel():
+class basic_model():
+
     def __init__(self, mass, inertia, moment_arm, cg=np.zeros(2)):
         '''
         Class defining 2D floatbot kinematic and dynamic model
@@ -20,10 +21,12 @@ class FloatbotModel():
         self.inertia = inertia # kg*m**2
         self.moment_arm = moment_arm # m
         self.cg = cg # m
-        
+    
+    # ---
+
     def xdot(self, x, u):
         '''
-        Computes the floatbot state derivatives
+        Computes the floatbot state derivatives - no information parameters. 
 
         Parameters
         ----------
@@ -105,42 +108,3 @@ class FloatbotModel():
         Vdot = Minv@(F-C)
         
         return cs.vertcat(rdot, qdot, Vdot)
-    
-if __name__ == "__main__":
-    
-    # Floatbot Parameters
-    mass = 16.8
-    inertia = .1594
-    max_thrust = 1.5
-    moment_arm = .12
-    cg = np.array([.068,0])
-    
-    # States
-    rx = 0
-    ry = 0
-    tht = 0
-    qw = np.cos(tht/2)
-    qz = np.sin(tht/2)
-    vx = 0
-    vy = 0
-    omg = 1
-    x = np.array([rx, ry, qw, qz, vx, vy, omg])
-    
-    # Control inputs
-    u = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-    
-    floatbot_model = FloatbotModel(mass, inertia, moment_arm, cg)
-    
-    # Compute the state derivatives for the initial conditions
-    for i in range(10):
-        xdot = floatbot_model.xdot(x, u)
-        x = x + .1*xdot
-        
-        # Normalize quaternion
-        qw = x[2]
-        qz = x[3]
-        q_mag = np.sqrt(qw**2+qz**2)
-        x[2] = qw/q_mag
-        x[3] = qz/q_mag
-        
-        print(x)
