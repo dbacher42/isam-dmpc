@@ -95,8 +95,8 @@ class Agent():
             H = controller_params.get('H', 20)
             Q = controller_params.get('Q', np.eye(6))
             R = controller_params.get('R', np.eye(4))
-            l = controller_params.get('lambda_fim', np.ones(4))
-            s = controller_params.get('covariance', np.ones(4))
+            l = controller_params.get('lambda_fim', np.ones((4,1)))
+            s = controller_params.get('covariance', 0.01*np.eye(7))
             max_thrust = controller_params.get('max_thrust', 1.5)
             self.controller = Excitation_MPC(x_cmd, self.dt, H, Q, R, l, s, max_thrust)
 

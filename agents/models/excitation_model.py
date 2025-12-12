@@ -39,9 +39,10 @@ class excitation_model():
         '''
         Computes the floatbot state derivatives - WITH information parameters. 
 
-        Note: The agent is initialized with its starting set of these parameters, 
-              which are the same that it's trying to estimate. The sim keeps a copy of this estimate 
-              which is used in the dynamics here, but the original values are not yet changed. 
+        Note: Takes a set of information parameters 'tht' as argument, rather than 
+              taking from itself (even though those are being updated realtime). 
+              This is to allow the MPC controller to pass in different estimates of the 
+              mass properties when integrating the dynamics in the cost function. 
 
         Parameters
         ----------

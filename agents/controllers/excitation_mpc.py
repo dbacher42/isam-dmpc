@@ -4,7 +4,7 @@ import numpy as np
 
 class Excitation_MPC():
     
-    def __init__(self, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), lambda_fim=np.ones(4), covariance=0.01*np.eye(7), max_thrust=np.inf):
+    def __init__(self, x_cmd, dt, H, Q=np.eye(6), R=np.eye(4), lambda_fim=np.ones((4,1)), covariance=0.01*np.eye(7), max_thrust=np.inf):
         '''
         EXCITATION MPC Class 
 
@@ -134,7 +134,7 @@ class Excitation_MPC():
             F += PHI.T @ cs.inv(self.covariance) @ PHI 
 
             # Error includes weighted FIM term  
-            cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k] + self.lambda_fim@cs.diag(cs.inv(F))
+            cost += X_err.T@Q@X_err + U[:,k].T@R@U[:,k] + self.lambda_fim.T@cs.diag(cs.inv(F))
             
             # Dynamics constraint: next state equals current state plus discrete dynamics
             X_next = f(X[:,k], U[:,k], tht0)
@@ -194,7 +194,7 @@ class Excitation_MPC():
     
     # --- 
 
-    def solve(self, x_current, model):
+    def solve(self, x, model):
         '''
         Solve the nonlinear OCP for one timestep
 
@@ -230,7 +230,7 @@ class Excitation_MPC():
         ubg = self.ubg
         
         # Solve the OCP for the current state
-        sol = self.solver(p=x_current, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+        sol = self.solver(p=x, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
         sol_opt = sol['x'].full().flatten()
 
         # Extract the first control action from the sequence
