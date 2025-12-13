@@ -16,7 +16,7 @@ class Superstructure_2D:
         joint definitions.
     """
 
-    def __init__(self, name=None, block_mass=10.0):
+    def __init__(self, name=None, block_mass=5.0):
 
         self.name = name
         self.block_mass = block_mass  # Mass per block in kg
