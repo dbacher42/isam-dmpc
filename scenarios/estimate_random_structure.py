@@ -25,15 +25,15 @@ def angle_to_quat(angle):
 
 # --- 
 
-def run_test():
+def run_single_test(lambda_fim_value):
     print("=== Random Structure Estimation Test ===")
     print("Random structure (50 blocks), 1 agent docked, parameter estimation\n")
     
     # ------------------------------- SIM SETUP -------------------------------
 
     # Sim 
-    dt = 1.0
-    sim_time = 25.0
+    dt = 0.2
+    sim_time = 10.0
     sim = DMPC_Sim(dt)
     
     
@@ -91,7 +91,7 @@ def run_test():
     # Controller - EXACT same weights as test_simple_dock
     Q = np.diag([1e1, 1e1, 1e2, 1e1, 1e1, 1e0])
     R = 1e-1 * np.eye(4)
-    lambda_fim = np.array([[100.0], [100.0], [100.0], [100.0]])
+    lambda_fim = np.array([[lambda_fim_value], [lambda_fim_value], [lambda_fim_value], [lambda_fim_value]])
     ctrl_params = {'x_cmd': x_cmd, 'H': 10, 'Q': Q, 'R': R, 'lambda_fim': lambda_fim, 'max_thrust': 1.5}
     
 
@@ -112,7 +112,7 @@ def run_test():
     
     # Run 
     print("\n--- Running simulation ---")
-    sim.run(sim_time, render=True, real_time=True)
+    sim.run(sim_time, render=False, real_time=False)
     
 
     # ------------------------------- BASIC RESULTS -------------------------------
@@ -206,6 +206,12 @@ def run_test():
     cg_x_error_body = tht_hat[1] - composite_cg_body[0]
     cg_y_error_body = tht_hat[2] - composite_cg_body[1]
     inertia_error = tht_hat[3] - composite_inertia
+
+        
+    mass_pct_error    = 100 * abs(mass_error) / composite_mass
+    inertia_pct_error = 100 * abs(inertia_error) / composite_inertia 
+
+    res = [mass_pct_error, cg_x_error_body, cg_y_error_body, inertia_pct_error]
     
     print(f"\nEstimation Errors (CG in body frame):")
     print(f"  Mass: {mass_error:.3f} kg ({100*abs(mass_error)/composite_mass:.1f}%)")
@@ -217,12 +223,69 @@ def run_test():
         print(f"  Inertia: {inertia_error:.4f} kg*m^2 (GT is zero!)")
     
     # Plot
-    sim.plot_trajectories()
-    sim.plot_states()
-    sim.plot_controls()
+    # sim.plot_trajectories()
+    # sim.plot_states()
+    # sim.plot_controls()
 
-    return sim
+    return sim, res
 
 
 if __name__ == "__main__":
-    run_test()
+
+    import matplotlib.pyplot as plt
+
+     # Lambda sweep: log-spaced from 0.1 to 1000
+    lambda_values = np.logspace(-1, 3, 15)
+    #lambda_values = np.array([100])
+    
+    # Collect results
+    results = {'lambda': [], 'mass_err': [], 'cg_x_err': [], 'cg_y_err': [], 'inertia_err': []}
+    
+    for lam in lambda_values:
+        print(f"\nTesting lambda_fim = {lam:.2f}")
+        sim, res = run_single_test(lam)
+        results['lambda'].append(lam)
+        results['mass_err'].append(res[0])
+        results['cg_x_err'].append(res[1])
+        results['cg_y_err'].append(res[2])
+        results['inertia_err'].append(res[3])
+    
+    import pandas as pd
+
+    df = pd.DataFrame(results)
+    # display df nicely
+    print("\n=== Summary of Results ===")
+    print(df.to_string(index=False))
+
+    # Plot results
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    
+    axes[0,0].semilogx(results['lambda'], results['mass_err'], 'o-', linewidth=2, markersize=6)
+    axes[0,0].set_xlabel('λ_FIM', fontsize=12)
+    axes[0,0].set_ylabel('Mass Error (%)', fontsize=12)
+    axes[0,0].set_title('Mass Estimation Error', fontsize=13, fontweight='bold')
+    axes[0,0].grid(True, alpha=0.3)
+    
+    axes[0,1].semilogx(results['lambda'], results['inertia_err'], 'o-', linewidth=2, markersize=6, color='C1')
+    axes[0,1].set_xlabel('λ_FIM', fontsize=12)
+    axes[0,1].set_ylabel('Inertia Error (%)', fontsize=12)
+    axes[0,1].set_title('Inertia Estimation Error', fontsize=13, fontweight='bold')
+    axes[0,1].grid(True, alpha=0.3)
+    
+    axes[1,0].semilogx(results['lambda'], results['cg_x_err'], 'o-', linewidth=2, markersize=6, color='C2')
+    axes[1,0].set_xlabel('λ_FIM', fontsize=12)
+    axes[1,0].set_ylabel('CG_x Error (m)', fontsize=12)
+    axes[1,0].set_title('CG X-Position Error', fontsize=13, fontweight='bold')
+    axes[1,0].grid(True, alpha=0.3)
+    
+    axes[1,1].semilogx(results['lambda'], results['cg_y_err'], 'o-', linewidth=2, markersize=6, color='C3')
+    axes[1,1].set_xlabel('λ_FIM', fontsize=12)
+    axes[1,1].set_ylabel('CG_y Error (m)', fontsize=12)
+    axes[1,1].set_title('CG Y-Position Error', fontsize=13, fontweight='bold')
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('rand_lambda_sweep_results.png', dpi=150)
+    print("\nPlot saved: rand_lambda_sweep_results.png")
+    plt.show()
+

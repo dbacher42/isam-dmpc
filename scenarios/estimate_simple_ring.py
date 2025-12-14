@@ -59,7 +59,7 @@ def hand_calculate_ring_properties(size=5):
     print(f"Block positions: {positions}")
     
     # Each block properties
-    block_mass = 10.0  # kg
+    block_mass = 5.0  # kg
     block_size = 1.0   # m
     block_inertia = (1/6) * block_mass * block_size**2  # kg*m^2 for solid cube
     
@@ -90,9 +90,10 @@ def hand_calculate_ring_properties(size=5):
     return total_mass, cg, total_inertia
 
 
-def run_test():
-    print("=== Simple Ring Estimation Test ===")
-    print("Ring structure, 1 agent docked, parameter estimation\n")
+def run_single_test(lambda_fim_value, render=False, verbose=True):
+    if verbose:
+        print("=== Simple Ring Estimation Test ===")
+        print("Ring structure, 1 agent docked, parameter estimation\n")
     
     # Hand calculations for reference
     ring_size = 5
@@ -101,8 +102,8 @@ def run_test():
     # ------------------------------- SIM SETUP -------------------------------
 
     # Sim 
-    dt = 1.0
-    sim_time = 20.0
+    dt = 0.2
+    sim_time = 10.0
     sim = DMPC_Sim(dt)
     
     
@@ -150,7 +151,7 @@ def run_test():
     # Controller - EXACT same weights as test_simple_dock
     Q = np.diag([1e1, 1e1, 1e2, 1e1, 1e1, 1e0])
     R = 1e-1 * np.eye(4)
-    lambda_fim = np.array([[100.0], [100.0], [100.0], [100.0]])
+    lambda_fim = np.array([[lambda_fim_value], [lambda_fim_value], [lambda_fim_value], [lambda_fim_value]])
     ctrl_params = {'x_cmd': x_cmd, 'H': 10, 'Q': Q, 'R': R, 'lambda_fim': lambda_fim, 'max_thrust': 1.5}
     
 
@@ -159,12 +160,17 @@ def run_test():
     # Officially add agent into sim env and dock to structure 
     agent = sim.build_agent("Agent_1", model, x0, 'Excitation_MPC', target_z=target_z, 
                            dock_block=first_block, **ctrl_params)
-    print(f"Agent z_offset: {agent.z_offset}")
+    if verbose:
+        print(f"Agent z_offset: {agent.z_offset}")
     
     # Compile and finalize all checks 
     sim.finalize()
     
-    print("\n=== Results ===")
+    # Run simulation
+    sim.run(sim_time, render=render, real_time=render)
+    
+    if verbose:
+        print("\n=== Results ===")
     agent_data = sim.Oracle.data['Agent_1']
     
     # x0 / xf 
@@ -257,6 +263,11 @@ def run_test():
     cg_y_error_body = tht_hat[2] - composite_cg_body[1]
     inertia_error = tht_hat[3] - composite_inertia
     
+    mass_pct_error    = 100 * abs(mass_error) / composite_mass
+    inertia_pct_error = 100 * abs(inertia_error) / composite_inertia 
+
+    res = [mass_pct_error, cg_x_error_body, cg_y_error_body, inertia_pct_error]
+
     print(f"\nEstimation Errors (CG in body frame):")
     print(f"  Mass: {mass_error:.3f} kg ({100*abs(mass_error)/composite_mass:.1f}%)")
     print(f"  CG_x: {cg_x_error_body:.4f} m")
@@ -280,12 +291,69 @@ def run_test():
         print(f"  Inertia: {inertia_error:.4f} kg*m^2 (GT is zero!)")
     
     # Plot
-    sim.plot_trajectories()
-    sim.plot_states()
-    sim.plot_controls()
+    # sim.plot_trajectories()
+    # sim.plot_states()
+    # sim.plot_controls()
 
-    return sim
+    return sim, res
 
 
 if __name__ == "__main__":
-    run_test()
+
+    import matplotlib.pyplot as plt
+
+     # Lambda sweep: log-spaced from 0.1 to 1000
+    lambda_values = np.logspace(-1, 3, 15)
+    #lambda_values = np.array([100])
+    
+    # Collect results
+    results = {'lambda': [], 'mass_err': [], 'cg_x_err': [], 'cg_y_err': [], 'inertia_err': []}
+    
+    for lam in lambda_values:
+        print(f"\nTesting lambda_fim = {lam:.2f}")
+        sim, res = run_single_test(lam, render=False, verbose=True)
+        results['lambda'].append(lam)
+        results['mass_err'].append(res[0])
+        results['cg_x_err'].append(res[1])
+        results['cg_y_err'].append(res[2])
+        results['inertia_err'].append(res[3])
+    
+    import pandas as pd
+
+    df = pd.DataFrame(results)
+    # display df nicely
+    print("\n=== Summary of Results ===")
+    print(df.to_string(index=False))
+
+    # Plot results
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    
+    axes[0,0].semilogx(results['lambda'], results['mass_err'], 'o-', linewidth=2, markersize=6)
+    axes[0,0].set_xlabel('λ_FIM', fontsize=12)
+    axes[0,0].set_ylabel('Mass Error (%)', fontsize=12)
+    axes[0,0].set_title('Mass Estimation Error', fontsize=13, fontweight='bold')
+    axes[0,0].grid(True, alpha=0.3)
+    
+    axes[0,1].semilogx(results['lambda'], results['inertia_err'], 'o-', linewidth=2, markersize=6, color='C1')
+    axes[0,1].set_xlabel('λ_FIM', fontsize=12)
+    axes[0,1].set_ylabel('Inertia Error (%)', fontsize=12)
+    axes[0,1].set_title('Inertia Estimation Error', fontsize=13, fontweight='bold')
+    axes[0,1].grid(True, alpha=0.3)
+    
+    axes[1,0].semilogx(results['lambda'], results['cg_x_err'], 'o-', linewidth=2, markersize=6, color='C2')
+    axes[1,0].set_xlabel('λ_FIM', fontsize=12)
+    axes[1,0].set_ylabel('CG_x Error (m)', fontsize=12)
+    axes[1,0].set_title('CG X-Position Error', fontsize=13, fontweight='bold')
+    axes[1,0].grid(True, alpha=0.3)
+    
+    axes[1,1].semilogx(results['lambda'], results['cg_y_err'], 'o-', linewidth=2, markersize=6, color='C3')
+    axes[1,1].set_xlabel('λ_FIM', fontsize=12)
+    axes[1,1].set_ylabel('CG_y Error (m)', fontsize=12)
+    axes[1,1].set_title('CG Y-Position Error', fontsize=13, fontweight='bold')
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('lambda_sweep_results.png', dpi=150)
+    print("\nPlot saved: ring_lambda_sweep_results.png")
+    plt.show()
+

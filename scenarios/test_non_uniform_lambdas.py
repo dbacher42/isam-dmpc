@@ -1,14 +1,16 @@
-# scenarios/estimate_simple_dock.py
+# scenarios/test_non_uniform_lambdas.py
 
 """
-    Parameter estimation with lambda_fim sweep: single block structure, single agent docked.
+    Parameter estimation with NON-UNIFORM lambda_fim sweep: 
+    - CG weights frozen at 100
+    - Mass weight and Inertia weight varied independently on a grid
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
-import time
+import time 
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,31 +26,18 @@ def angle_to_quat(angle):
 
 # --- 
 
-def run_single_test(lambda_fim_value, render=False, verbose=True):
+def run_single_test(lambda_mass, lambda_inertia, render=False, verbose=True):
     """
-    Run a single estimation test with specified lambda_fim value.
+    Run a single estimation test with specified lambda values.
+    lambda_fim = [lambda_mass, 100.0 (CG_x), 100.0 (CG_y), lambda_inertia]
     
-    Parameters
-    ----------
-    lambda_fim_value : float
-        FIM weight to use (uniform across all 4 parameters)
-    render : bool
-        Whether to show MuJoCo viewer
-    verbose : bool
-        Whether to print detailed output
-        
-    Returns
-    -------
-    errors : dict
-        Dictionary with 'mass', 'cg_x', 'cg_y', 'inertia' percentage errors
-    gt : dict
-        Ground truth values
-    est : dict
-        Estimated values
+    Returns:
+        sim: Simulation object
+        res: List of [mass_pct_error, cg_x_error_m, cg_y_error_m, inertia_pct_error]
     """
     if verbose:
         print(f"\n{'='*60}")
-        print(f"Testing lambda_fim = {lambda_fim_value}")
+        print(f"Testing lambda_mass = {lambda_mass}, lambda_inertia = {lambda_inertia}")
         print(f"{'='*60}")
     
     start = time.time()
@@ -112,7 +101,7 @@ def run_single_test(lambda_fim_value, render=False, verbose=True):
     #   - Angular measurements might have different noise than linear
     # For now, uniform weighting is reasonable starting point. Sweep later if needed.
     
-    lambda_fim = np.array([[lambda_fim_value], [lambda_fim_value], [lambda_fim_value], [lambda_fim_value]])
+    lambda_fim = np.array([[lambda_mass], [100.0], [100.0], [lambda_inertia]])
     ctrl_params = {'x_cmd': x_cmd, 'H': 10, 'Q': Q, 'R': R, 'lambda_fim': lambda_fim, 'max_thrust': 1.5}
     
 
@@ -256,62 +245,138 @@ def run_single_test(lambda_fim_value, render=False, verbose=True):
     end = time.time()
     print(f"\nSimulation and estimation took {end - start:.2f} seconds.")
 
-    return sim, res 
+    return sim, res
 
 
 if __name__ == "__main__":
     
-    # Lambda sweep: log-spaced from 0.1 to 1000
-    lambda_values = np.logspace(-1, 3, 15)
-    #lambda_values = np.array([100])
+    # Grid of lambda values: 5x5 grid
+    # Mass weight: 5 log-spaced points from 0.1 to 1000
+    # Inertia weight: 5 log-spaced points from 0.1 to 1000
+    # CG weights: frozen at 100
     
-    # Collect results
-    results = {'lambda': [], 'mass_err': [], 'cg_x_err': [], 'cg_y_err': [], 'inertia_err': []}
+    lambda_mass_values = np.logspace(-1, 3, 5)  # [0.1, 1, 10, 100, 1000]
+    lambda_inertia_values = np.logspace(-1, 3, 5)  # [0.1, 1, 10, 100, 1000]
     
-    for lam in lambda_values:
-        print(f"\nTesting lambda_fim = {lam:.2f}")
-        sim, res = run_single_test(lam, render=False, verbose=True)
-        results['lambda'].append(lam)
-        results['mass_err'].append(res[0])
-        results['cg_x_err'].append(res[1])
-        results['cg_y_err'].append(res[2])
-        results['inertia_err'].append(res[3])
+    print(f"Lambda mass values: {lambda_mass_values}")
+    print(f"Lambda inertia values: {lambda_inertia_values}")
+    print(f"Total tests: {len(lambda_mass_values) * len(lambda_inertia_values)}")
     
-    import pandas as pd
-
-    df = pd.DataFrame(results)
-    # display df nicely
-    print("\n=== Summary of Results ===")
-    print(df.to_string(index=False))
-
-    # Plot results
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    # Create meshgrid for results
+    n_mass = len(lambda_mass_values)
+    n_inertia = len(lambda_inertia_values)
     
-    axes[0,0].semilogx(results['lambda'], results['mass_err'], 'o-', linewidth=2, markersize=6)
-    axes[0,0].set_xlabel('λ_FIM', fontsize=12)
-    axes[0,0].set_ylabel('Mass Error (%)', fontsize=12)
-    axes[0,0].set_title('Mass Estimation Error', fontsize=13, fontweight='bold')
-    axes[0,0].grid(True, alpha=0.3)
+    mass_err_grid = np.zeros((n_mass, n_inertia))
+    cg_x_err_grid = np.zeros((n_mass, n_inertia))
+    cg_y_err_grid = np.zeros((n_mass, n_inertia))
+    inertia_err_grid = np.zeros((n_mass, n_inertia))
     
-    axes[0,1].semilogx(results['lambda'], results['inertia_err'], 'o-', linewidth=2, markersize=6, color='C1')
-    axes[0,1].set_xlabel('λ_FIM', fontsize=12)
-    axes[0,1].set_ylabel('Inertia Error (%)', fontsize=12)
-    axes[0,1].set_title('Inertia Estimation Error', fontsize=13, fontweight='bold')
-    axes[0,1].grid(True, alpha=0.3)
+    # Run tests
+    test_count = 0
+    total_tests = n_mass * n_inertia
     
-    axes[1,0].semilogx(results['lambda'], results['cg_x_err'], 'o-', linewidth=2, markersize=6, color='C2')
-    axes[1,0].set_xlabel('λ_FIM', fontsize=12)
-    axes[1,0].set_ylabel('CG_x Error (m)', fontsize=12)
-    axes[1,0].set_title('CG X-Position Error', fontsize=13, fontweight='bold')
-    axes[1,0].grid(True, alpha=0.3)
+    for i, lambda_mass in enumerate(lambda_mass_values):
+        for j, lambda_inertia in enumerate(lambda_inertia_values):
+            test_count += 1
+            print(f"\n{'='*70}")
+            print(f"Test {test_count}/{total_tests}: lambda_mass={lambda_mass:.2f}, lambda_inertia={lambda_inertia:.2f}")
+            print(f"{'='*70}")
+            
+            sim, res = run_single_test(lambda_mass, lambda_inertia, render=False, verbose=True)
+            
+            mass_err_grid[i, j] = res[0]
+            cg_x_err_grid[i, j] = res[1]
+            cg_y_err_grid[i, j] = res[2]
+            inertia_err_grid[i, j] = res[3]
     
-    axes[1,1].semilogx(results['lambda'], results['cg_y_err'], 'o-', linewidth=2, markersize=6, color='C3')
-    axes[1,1].set_xlabel('λ_FIM', fontsize=12)
-    axes[1,1].set_ylabel('CG_y Error (m)', fontsize=12)
-    axes[1,1].set_title('CG Y-Position Error', fontsize=13, fontweight='bold')
-    axes[1,1].grid(True, alpha=0.3)
+    # Create 2D heatmap plots
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    
+    # Mass error heatmap
+    im0 = axes[0, 0].contourf(lambda_inertia_values, lambda_mass_values, mass_err_grid, levels=20, cmap='viridis')
+    axes[0, 0].set_xscale('log')
+    axes[0, 0].set_yscale('log')
+    axes[0, 0].set_xlabel('λ_inertia', fontsize=12)
+    axes[0, 0].set_ylabel('λ_mass', fontsize=12)
+    axes[0, 0].set_title('Mass Error (%) Heatmap', fontsize=13, fontweight='bold')
+    plt.colorbar(im0, ax=axes[0, 0])
+    
+    # Inertia error heatmap
+    im1 = axes[0, 1].contourf(lambda_inertia_values, lambda_mass_values, inertia_err_grid, levels=20, cmap='viridis')
+    axes[0, 1].set_xscale('log')
+    axes[0, 1].set_yscale('log')
+    axes[0, 1].set_xlabel('λ_inertia', fontsize=12)
+    axes[0, 1].set_ylabel('λ_mass', fontsize=12)
+    axes[0, 1].set_title('Inertia Error (%) Heatmap', fontsize=13, fontweight='bold')
+    plt.colorbar(im1, ax=axes[0, 1])
+    
+    # CG_x error heatmap
+    im2 = axes[1, 0].contourf(lambda_inertia_values, lambda_mass_values, np.abs(cg_x_err_grid), levels=20, cmap='viridis')
+    axes[1, 0].set_xscale('log')
+    axes[1, 0].set_yscale('log')
+    axes[1, 0].set_xlabel('λ_inertia', fontsize=12)
+    axes[1, 0].set_ylabel('λ_mass', fontsize=12)
+    axes[1, 0].set_title('|CG_x Error| (m) Heatmap', fontsize=13, fontweight='bold')
+    plt.colorbar(im2, ax=axes[1, 0])
+    
+    # CG_y error heatmap
+    im3 = axes[1, 1].contourf(lambda_inertia_values, lambda_mass_values, np.abs(cg_y_err_grid), levels=20, cmap='viridis')
+    axes[1, 1].set_xscale('log')
+    axes[1, 1].set_yscale('log')
+    axes[1, 1].set_xlabel('λ_inertia', fontsize=12)
+    axes[1, 1].set_ylabel('λ_mass', fontsize=12)
+    axes[1, 1].set_title('|CG_y Error| (m) Heatmap', fontsize=13, fontweight='bold')
+    plt.colorbar(im3, ax=axes[1, 1])
     
     plt.tight_layout()
-    plt.savefig('lambda_sweep_results.png', dpi=150)
-    print("\nPlot saved: lambda_sweep_results.png")
+    plt.savefig('non_uniform_lambda_heatmaps.png', dpi=150)
+    print("\nHeatmap plot saved: non_uniform_lambda_heatmaps.png")
+    plt.show()
+    
+    # --- ZOOMED HEATMAPS (clipped to 0-30% range for better visualization) ---
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    
+    # Mass error (clipped to 0-30%)
+    mass_err_clipped = np.clip(mass_err_grid, 0, 30)
+    im0 = axes[0, 0].contourf(lambda_inertia_values, lambda_mass_values, mass_err_clipped, levels=20, cmap='viridis')
+    axes[0, 0].set_xscale('log')
+    axes[0, 0].set_yscale('log')
+    axes[0, 0].set_xlabel('λ_inertia', fontsize=12)
+    axes[0, 0].set_ylabel('λ_mass', fontsize=12)
+    axes[0, 0].set_title('Mass Error (%) - Clipped to 0-30%', fontsize=13, fontweight='bold')
+    plt.colorbar(im0, ax=axes[0, 0])
+    
+    # Inertia error (clipped to 0-30%)
+    inertia_err_clipped = np.clip(inertia_err_grid, 0, 30)
+    im1 = axes[0, 1].contourf(lambda_inertia_values, lambda_mass_values, inertia_err_clipped, levels=20, cmap='viridis')
+    axes[0, 1].set_xscale('log')
+    axes[0, 1].set_yscale('log')
+    axes[0, 1].set_xlabel('λ_inertia', fontsize=12)
+    axes[0, 1].set_ylabel('λ_mass', fontsize=12)
+    axes[0, 1].set_title('Inertia Error (%) - Clipped to 0-30%', fontsize=13, fontweight='bold')
+    plt.colorbar(im1, ax=axes[0, 1])
+    
+    # CG_x error
+    cg_x_err_clipped = np.clip(np.abs(cg_x_err_grid), 0, 0.2)
+    im2 = axes[1, 0].contourf(lambda_inertia_values, lambda_mass_values, cg_x_err_clipped, levels=20, cmap='viridis')
+    axes[1, 0].set_xscale('log')
+    axes[1, 0].set_yscale('log')
+    axes[1, 0].set_xlabel('λ_inertia', fontsize=12)
+    axes[1, 0].set_ylabel('λ_mass', fontsize=12)
+    axes[1, 0].set_title('|CG_x Error| (m) - Clipped to 0-0.2m', fontsize=13, fontweight='bold')
+    plt.colorbar(im2, ax=axes[1, 0])
+    
+    # CG_y error
+    cg_y_err_clipped = np.clip(np.abs(cg_y_err_grid), 0, 0.2)
+    im3 = axes[1, 1].contourf(lambda_inertia_values, lambda_mass_values, cg_y_err_clipped, levels=20, cmap='viridis')
+    axes[1, 1].set_xscale('log')
+    axes[1, 1].set_yscale('log')
+    axes[1, 1].set_xlabel('λ_inertia', fontsize=12)
+    axes[1, 1].set_ylabel('λ_mass', fontsize=12)
+    axes[1, 1].set_title('|CG_y Error| (m) - Clipped to 0-0.2m', fontsize=13, fontweight='bold')
+    plt.colorbar(im3, ax=axes[1, 1])
+    
+    plt.tight_layout()
+    plt.savefig('non_uniform_lambda_heatmaps_zoomed.png', dpi=150)
+    print("Zoomed heatmap plot saved: non_uniform_lambda_heatmaps_zoomed.png")
     plt.show()
