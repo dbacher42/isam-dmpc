@@ -33,7 +33,7 @@ def run_single_test(lambda_fim_value):
 
     # Sim 
     dt = 0.2
-    sim_time = 10.0
+    sim_time = 20.0
     sim = DMPC_Sim(dt)
     
     
@@ -112,7 +112,7 @@ def run_single_test(lambda_fim_value):
     
     # Run 
     print("\n--- Running simulation ---")
-    sim.run(sim_time, render=False, real_time=False)
+    sim.run(sim_time, render=True, real_time=True)
     
 
     # ------------------------------- BASIC RESULTS -------------------------------
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
      # Lambda sweep: log-spaced from 0.1 to 1000
-    lambda_values = np.logspace(-1, 3, 15)
+    lambda_values = [1] #np.logspace(-1, 3, 15)
     #lambda_values = np.array([100])
     
     # Collect results
