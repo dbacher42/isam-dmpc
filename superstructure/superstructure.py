@@ -16,14 +16,10 @@ class Superstructure_2D:
         joint definitions.
     """
 
-    def __init__(self, name=None, block_mass=5.0):
+    def __init__(self, name=None):
 
         self.name = name
-        self.block_mass = block_mass  # Mass per block in kg
-
-        # Formatting
-        self.block_rgba = [0.2, 0.7, 0.9, 1.0]  
-
+        
     # --- 
 
     def _connect_blocks(self, 
@@ -54,8 +50,8 @@ class Superstructure_2D:
         base.add_geom(
                       type=mujoco.mjtGeom.mjGEOM_BOX,
                       size=[root.size/2, root.size/2, root.size/2],
-                      rgba=self.block_rgba,
-                      mass=self.block_mass
+                      rgba=root.rgba,
+                      mass=root.mass
                      )
         
         # Enforce planar motion for entire structure 
@@ -80,6 +76,7 @@ class Superstructure_2D:
                 
             else: continue  
 
+            # Grab block  
             parent = added[parent_id]
             parent_block = next(b for b in blocks if b.id == parent_id)
             child_block  = next(b for b in blocks if b.id == child_id)
@@ -99,8 +96,8 @@ class Superstructure_2D:
             child.add_geom(
                            type=mujoco.mjtGeom.mjGEOM_BOX,                                 # NO joints, RIGID by default 
                            size=[child_block.size/2, child_block.size/2, child_block.size/2],
-                           rgba=self.block_rgba,
-                           mass=self.block_mass
+                           rgba=child_block.rgba,
+                           mass=child_block.mass
                           )
             added[child_id] = child
         
@@ -108,7 +105,7 @@ class Superstructure_2D:
         
         # Compile later in sim exec
         self.spec = STRUCTURE
-        self.blocks = {b.id: b for b in blocks}  # Store blocks for geometry lookup
+        self.blocks = {b.id: b for b in blocks}  
     
 
 # ---
@@ -124,11 +121,14 @@ class Unit_Block:
 
     def __init__(self, 
                  id  : str,
-                 size: float = 1.0):
+                 size: float = 1.0,
+                 mass: float = 5.0,
+                 rgba: list  = [0.2, 0.7, 0.9, 1.0]):
         
         self.id   = id
         self.size = size
-
+        self.mass = mass
+        self.rgba = rgba  
 
 # ---
 
@@ -136,6 +136,8 @@ class Connection:
 
     """
         Define a connection between two block faces.    
+
+        Weld/slide constraints applied later during model gen. 
     """
 
     def __init__(self, block_a_id: str, face_a: str, 
@@ -146,5 +148,4 @@ class Connection:
         self.id_b    = block_b_id
         self.face_b  = face_b
         
-        # self.joint_type = joint_type                  # weld/slide constraints applied in model generation 
-
+        # self.joint_type = joint_type                  

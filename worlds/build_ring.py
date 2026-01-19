@@ -7,12 +7,11 @@ from superstructure import *
 # -------------------------------------------------------------------------------------------------
 
 def build_ring(size=5):
-    """Build an NxN ring of blocks (hollow interior, 1-block thick edge)."""
-    blocks = []
-    connections = []
+    """ Build an NxN ring of blocks (hollow interior, 1-block thick edge). """
     
-    # Build edge positions in order (no duplicates)
-    positions = []
+    blocks      = []
+    connections = []
+    positions   = []
     
     # Top row: (0,N-1) to (N-1,N-1)
     for x in range(size):
