@@ -2,6 +2,12 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../../Code/multiagent-construction"
+		},
+		{
+			"path": "../../Research/LASER"
 		}
 	],
 	"settings": {}
