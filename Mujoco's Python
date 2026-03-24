@@ -1,0 +1,176 @@
+import tkinter as tk
+from tkinter import messagebox
+import numpy as np
+import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import xml.etree.ElementTree as ET
+import mujoco
+from mujoco import viewer
+
+# --------------------------
+# Utility Functions
+# --------------------------
+def rotation_from_slope(sx, sy):
+    z = np.array([sx, sy, 1.0]); z /= np.linalg.norm(z)
+    tmp = np.array([0,0,1]); tmp = tmp if abs(np.dot(tmp,z))<0.9 else np.array([1,0,0])
+    x = np.cross(tmp,z); x/=np.linalg.norm(x); y=np.cross(z,x)
+    return np.vstack([x,y,z])
+
+def rot_to_quat(R):
+    """Convert 3x3 rotation matrix to quaternion [w, x, y, z]"""
+    m = R
+    trace = np.trace(m)
+    if trace > 0:
+        s = 0.5 / np.sqrt(trace + 1.0)
+        w = 0.25 / s
+        x = (m[2,1] - m[1,2]) * s
+        y = (m[0,2] - m[2,0]) * s
+        z = (m[1,0] - m[0,1]) * s
+    else:
+        if m[0,0] > m[1,1] and m[0,0] > m[2,2]:
+            s = 2.0 * np.sqrt(1.0 + m[0,0] - m[1,1] - m[2,2])
+            w = (m[2,1] - m[1,2]) / s
+            x = 0.25 * s
+            y = (m[0,1] + m[1,0]) / s
+            z = (m[0,2] + m[2,0]) / s
+        elif m[1,1] > m[2,2]:
+            s = 2.0 * np.sqrt(1.0 + m[1,1] - m[0,0] - m[2,2])
+            w = (m[0,2] - m[2,0]) / s
+            x = (m[0,1] + m[1,0]) / s
+            y = 0.25 * s
+            z = (m[1,2] + m[2,1]) / s
+        else:
+            s = 2.0 * np.sqrt(1.0 + m[2,2] - m[0,0] - m[1,1])
+            w = (m[1,0] - m[0,1]) / s
+            x = (m[0,2] + m[2,0]) / s
+            y = (m[1,2] + m[2,1]) / s
+            z = 0.25 * s
+    return [w, x, y, z]
+
+# --------------------------
+# Module & Structure Classes
+# --------------------------
+class Module:
+    def __init__(self, mass, a, b, c, x, y, z, sx, sy):
+        self.mass = mass
+        self.dim = np.array([a, b, c])
+        self.pos = np.array([x, y, z])
+        self.R = rotation_from_slope(sx, sy)
+        a, b, c = self.dim
+        self.inertia = np.diag([(1/12)*mass*(b**2+c**2),
+                                (1/12)*mass*(a**2+c**2),
+                                (1/12)*mass*(a**2+b**2)])
+        self.inertia = self.R @ self.inertia @ self.R.T
+    def corners(self):
+        a, b, c = self.dim
+        local = np.array([[-a/2,-b/2,-c/2],[a/2,-b/2,-c/2],[a/2,b/2,-c/2],[-a/2,b/2,-c/2],
+                          [-a/2,-b/2,c/2],[a/2,-b/2,c/2],[a/2,b/2,c/2],[-a/2,b/2,c/2]])
+        return (self.R @ local.T).T + self.pos
+
+class Structure:
+    def __init__(self):
+        self.modules = []
+    def add(self, m):
+        self.modules.append(m)
+    def COM(self):
+        return sum(m.mass*m.pos for m in self.modules)/sum(m.mass for m in self.modules) if self.modules else np.zeros(3)
+    def inertia_tensor(self):
+        COM = self.COM(); I = np.zeros((3,3))
+        for m in self.modules:
+            d = m.pos - COM
+            I += m.inertia + m.mass*((np.dot(d,d)*np.eye(3)) - np.outer(d,d))
+        return I
+    def draw(self, ax):
+        ax.cla()
+        for m in self.modules:
+            c = m.corners()
+            faces = [[c[0],c[1],c[2],c[3]], [c[4],c[5],c[6],c[7]], [c[0],c[1],c[5],c[4]],
+                     [c[2],c[3],c[7],c[6]], [c[1],c[2],c[6],c[5]], [c[4],c[7],c[3],c[0]]]
+            ax.add_collection3d(Poly3DCollection(faces, edgecolor='k', alpha=0.3))
+        if self.modules:
+            com = self.COM()
+            ax.scatter(*com, color='red', s=100, label='COM')
+            ax.text(*com, f'COM\n{com.round(2)}', color='red')
+            all_corners = np.vstack([m.corners() for m in self.modules])
+            min_vals, max_vals = all_corners.min(axis=0), all_corners.max(axis=0)
+            ax.set_xlim(min_vals[0]-1, max_vals[0]+1)
+            ax.set_ylim(min_vals[1]-1, max_vals[1]+1)
+            ax.set_zlim(min_vals[2]-1, max_vals[2]+1)
+        ax.set_xlabel("X"); ax.set_ylabel("Y"); ax.set_zlabel("Z"); ax.set_title("Structure Model")
+
+# --------------------------
+# Generate MuJoCo XML (mass.xml)
+# --------------------------
+def structure_to_mjcf(structure, filename="mass.xml"):
+    mujoco_root = ET.Element("mujoco", attrib={"model":"mass_model"})
+    worldbody = ET.SubElement(mujoco_root, "worldbody")
+    for i, m in enumerate(structure.modules):
+        body = ET.SubElement(worldbody, "body", attrib={
+            "name": f"module{i+1}",
+            "pos": f"{m.pos[0]} {m.pos[1]} {m.pos[2]}"
+        })
+        quat = rot_to_quat(m.R)
+        body.set("quat", f"{quat[0]} {quat[1]} {quat[2]} {quat[3]}")
+        a, b, c = m.dim / 2
+        ET.SubElement(body, "geom", attrib={
+            "type":"box",
+            "size": f"{a} {b} {c}",
+            "mass": f"{m.mass}",
+            "rgba":"0.6 0.6 0.8 1"
+        })
+    ET.ElementTree(mujoco_root).write(filename)
+    print(f"MuJoCo XML saved as {filename}")
+
+# --------------------------
+# Tkinter GUI
+# --------------------------
+class App:
+    def __init__(self, root):
+        self.struct = Structure()
+        frm = tk.Frame(root); frm.pack(side="left", padx=5, pady=5)
+        labels = ["Mass","a","b","c","x","y","z","sx","sy"]
+        self.entries = {}
+        for i, lbl in enumerate(labels):
+            tk.Label(frm, text=lbl).grid(row=i, column=0)
+            e = tk.Entry(frm); e.grid(row=i, column=1); e.insert(0,"0")
+            self.entries[lbl] = e
+        tk.Button(frm, text="Add Module", command=self.add_module).grid(row=9,column=0,columnspan=2,pady=5)
+        tk.Button(frm, text="Show COM/Inertia", command=self.show_props).grid(row=10,column=0,columnspan=2,pady=5)
+        tk.Button(frm, text="Generate MuJoCo XML", command=self.generate_xml).grid(row=11,column=0,columnspan=2,pady=5)
+        tk.Button(frm, text="Run MuJoCo Simulation", command=self.run_sim).grid(row=12,column=0,columnspan=2,pady=5)
+
+        self.fig = plt.figure(figsize=(6,5)); self.ax = self.fig.add_subplot(111, projection='3d')
+        self.canvas = FigureCanvasTkAgg(self.fig, master=root); self.canvas.get_tk_widget().pack(side="right", fill="both", expand=True)
+        self.struct.draw(self.ax); self.canvas.draw()
+
+    def add_module(self):
+        try: vals = [float(self.entries[k].get()) for k in ["Mass","a","b","c","x","y","z","sx","sy"]]
+        except: messagebox.showerror("Error","Enter valid numbers"); return
+        self.struct.add(Module(*vals)); self.struct.draw(self.ax); self.canvas.draw()
+
+    def show_props(self):
+        com = self.struct.COM(); I = self.struct.inertia_tensor()
+        msg = f"Center of Mass:\n{com}\n\nInertia Tensor:\n{I}"; print(msg); messagebox.showinfo("COM & Inertia", msg)
+
+    def generate_xml(self):
+        structure_to_mjcf(self.struct, filename="mass.xml")
+        messagebox.showinfo("XML", "MuJoCo XML generated as 'mass.xml'.")
+
+    def run_sim(self):
+        structure_to_mjcf(self.struct, filename="mass.xml")
+        model = mujoco.MjModel.from_xml_path("mass.xml")
+        data = mujoco.MjData(model)
+        with viewer.launch(model, data) as v:
+            for _ in range(500):
+                mujoco.mj_step(model, data)
+                v.sync()  # synchronize to real-time speed
+
+# --------------------------
+# Run App
+# --------------------------
+root = tk.Tk()
+App(root)
+root.mainloop()
