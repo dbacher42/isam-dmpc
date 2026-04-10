@@ -1,0 +1,10 @@
+<mujoco model="mass_model">
+<worldbody>
+<body name="module1" pos="4.0 5.0 4.0" quat="-0.37560324225004205 0.28560830922548747 0.533664007354015 0.701821077887711">
+<geom type="box" size="1.0 2.0 2.0" mass="7.0" rgba="0.6 0.6 0.8 1"/>
+</body>
+<body name="module2" pos="4.0 4.0 7.0" quat="-0.2838706108808657 0.2566399923722925 0.6195837502325162 0.6853242787477215">
+<geom type="box" size="1.5 2.0 2.0" mass="7.0" rgba="0.6 0.6 0.8 1"/>
+</body>
+</worldbody>
+</mujoco>
