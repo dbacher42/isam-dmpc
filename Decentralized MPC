@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import time
 
 # ======================================================
-# 1. MuJoCo  XML Model
+# 1.  MuJoCo  XML Model
 # ======================================================
 xml_model = """
 <mujoco>
@@ -31,11 +31,12 @@ xml_model = """
 
         <body name="agent2" pos="-0.4 0 0">
             <joint name="slide_x2" type="slide" axis="1 0 0" damping="0.1"/>
-            <geom type="sphere" size="0.05"/>
+            <geom type="sphere" size="0.05" rgba="0 1 0 1"/>
         </body>
 
+        <!-- starts outside the front face -->
         <body name="agent3" pos="0 0.45 0">
-            <joint name="slide_x3" type="slide" axis="0 1 0" damping="0.1"/>
+            <joint name="slide_y3" type="slide" axis="0 1 0" damping="0.1"/>
             <geom type="sphere" size="0.05" rgba="1 0 1 1"/>
         </body>
     </worldbody>
@@ -43,21 +44,22 @@ xml_model = """
     <actuator>
         <motor joint="slide_x1" ctrlrange="-200 200"/>
         <motor joint="slide_x2" ctrlrange="-200 200"/>
-        <motor joint="slide_x3" ctrlrange="-200 200"/>
+        <motor joint="slide_y3" ctrlrange="-200 200"/>
     </actuator>
 </mujoco>
 """
 
 # ======================================================
-# 2. P&P MPC Controller
+# 2. Plug-and-Play Tube MPC Controller
 # ======================================================
 class PnPAgent:
-    def __init__(self, A, B, K, horizon=8, d_safe=0.1):
+    def __init__(self, A, B, K, horizon=8, d_safe=0.1, epsilon=0.05):
         self.A = A
         self.B = B
         self.K = K
         self.horizon = horizon
         self.d_safe = d_safe
+        self.epsilon = epsilon
         self.nx = A.shape[0]
         self.nu = B.shape[1]
         self.solver = self._build_solver()
@@ -75,17 +77,22 @@ class PnPAgent:
         cost = 0
 
         for k in range(self.horizon):
+            # System dynamics
             opti.subject_to(x[:, k+1] == self.A @ x[:, k] + self.B @ u[:, k])
 
+            # Cost function
             err = x[:, k] - target
             cost += 200 * ca.mtimes(err.T, err) + 0.05 * ca.mtimes(u[:, k].T, u[:, k])
 
-            # Collision avoidance (approximate)
+            # Collision avoidance
             opti.subject_to(ca.fabs(x[0, k] - x_other) >= self.d_safe)
 
-        opti.subject_to(opti.bounded(-0.45, x[0, :], 0.45))
-        opti.subject_to(x[:, 0] == x_init)
+        # Tube constraint tightening
+        opti.subject_to(opti.bounded(-0.45 + self.epsilon,
+                                    x[0, :],
+                                    0.45 - self.epsilon))
 
+        opti.subject_to(x[:, 0] == x_init)
         opti.minimize(cost)
 
         opti.solver('ipopt', {
@@ -97,29 +104,23 @@ class PnPAgent:
         return opti.to_function('solver', [x_init, x_other], [u[:, 0], x[:, 0]])
 
 # ======================================================
-# 3. Initialize Simulation
+# 3.  Initialize Simulation
 # ======================================================
 model = mujoco.MjModel.from_xml_string(xml_model)
 data = mujoco.MjData(model)
 
 dt = 0.02
 
-# Agent 1
-data.qpos[0] = 0.4
 A = np.array([[1, dt], [0, 1]])
 B = np.array([[0.5 * dt**2], [dt]])
-K1 = np.array([-40.0, -10.0])
-agent1 = PnPAgent(A, B, K1)
 
-# Agent 2
+agent1 = PnPAgent(A, B, K=np.array([-40.0, -10.0]))
+agent2 = PnPAgent(A, B, K=np.array([-35.0, -8.0]))
+agent3 = PnPAgent(A, B, K=np.array([-35.0, -10.0]))
+
+data.qpos[0] = 0.4
 data.qpos[1] = -0.4
-K2 = np.array([-35.0, -8.0])
-agent2 = PnPAgent(A, B, K2)
-
-# Agent 3
-data.qpos[2] = 0.4
-K3 = np.array([-35.0, -10.0])
-agent3 = PnPAgent(A, B, K3)
+data.qpos[2] = 0.45
 
 # ======================================================
 # 4. LOGGING
@@ -129,7 +130,7 @@ x1_log, x2_log, x3_log = [], [], []
 u1_log, u2_log, u3_log = [], [], []
 dist12_log = []
 
-print("Running scalable DMPC simulation (3 agents)...")
+print("Running Tube-based DMPC with 3 agents...")
 
 # ======================================================
 # 5. Simulation Loop
@@ -138,32 +139,34 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
     while viewer.is_running() and data.time < 20.0:
         step_start = time.time()
 
-        # --- Agent 1 ---
+        # Add small disturbance
+        disturbance = 0.002 * np.random.randn()
+        data.qvel[:] += disturbance
+
+        # Agent 1
         x1 = np.array([data.qpos[0], data.qvel[0]])
         other1 = (data.qpos[1] + data.qpos[2]) / 2
         u1_nom, x1_nom = agent1.solver(x1, other1)
-        u1 = float(u1_nom) + K1 @ (x1 - np.array(x1_nom).flatten())
+        u1 = float(u1_nom) + agent1.K @ (x1 - np.array(x1_nom).flatten())
 
-        # --- Agent 2 ---
+        # Agent 2
         x2 = np.array([data.qpos[1], data.qvel[1]])
         other2 = (data.qpos[0] + data.qpos[2]) / 2
         u2_nom, x2_nom = agent2.solver(x2, other2)
-        u2 = float(u2_nom) + K2 @ (x2 - np.array(x2_nom).flatten())
+        u2 = float(u2_nom) + agent2.K @ (x2 - np.array(x2_nom).flatten())
 
-        # --- Agent 3 ---
+        # Agent 3 (moves in y-direction)
         x3 = np.array([data.qpos[2], data.qvel[2]])
         other3 = (data.qpos[0] + data.qpos[1]) / 2
         u3_nom, x3_nom = agent3.solver(x3, other3)
-        u3 = float(u3_nom) + K3 @ (x3 - np.array(x3_nom).flatten())
+        u3 = float(u3_nom) + agent3.K @ (x3 - np.array(x3_nom).flatten())
 
-        # Apply controls and step simulation
+        # Apply control
         data.ctrl[0] = u1
         data.ctrl[1] = u2
         data.ctrl[2] = u3
 
         mujoco.mj_step(model, data)
-
-        #Update viewer
         viewer.sync()
 
         # Logging
@@ -181,7 +184,7 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
         if int(data.time * 10) % 5 == 0:
             print(f"{data.time:5.2f}s | x1={data.qpos[0]:.3f}, x2={data.qpos[1]:.3f}, x3={data.qpos[2]:.3f}")
 
-        # synchronize to real time
+        # Real-time sync
         elapsed = time.time() - step_start
         if dt - elapsed > 0:
             time.sleep(dt - elapsed)
@@ -189,27 +192,42 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
 print("Simulation complete.")
 
 # ======================================================
-# 6. PLOTS
+# 6. PLOTS 
 # ======================================================
-plt.rcParams.update({
-    "font.size": 10,
-    "lines.linewidth": 1.5
-})
+epsilon = 0.05
 
-# Position
-plt.figure(figsize=(5,3))
+plt.rcParams.update({"font.size": 10, "lines.linewidth": 1.5})
+
+# --- POSITION PLOT ---
+plt.figure(figsize=(6,3))
+
 plt.plot(time_log, x1_log, label="Agent 1")
 plt.plot(time_log, x2_log, label="Agent 2")
 plt.plot(time_log, x3_log, label="Agent 3")
+
+# Structure bounds
+plt.axhline(0.45, linestyle='-', linewidth=1, label="Boundary")
+plt.axhline(-0.45, linestyle='-', linewidth=1)
+
+# Tube bounds
+plt.axhline(0.45 - epsilon, linestyle='--', linewidth=1.5, label="Tube bound")
+plt.axhline(-0.45 + epsilon, linestyle='--', linewidth=1.5)
+
+# Shaded tube region
+plt.fill_between(time_log,
+                 -0.45 + epsilon,
+                 0.45 - epsilon,
+                 alpha=0.1)
+
 plt.xlabel("Time [s]")
 plt.ylabel("Position")
-plt.title("Agent Positions")
+plt.title("Tube-based DMPC: Safety Envelope")
 plt.legend(frameon=False)
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("positions.png", dpi=300)
+plt.savefig("tube_bounds.png", dpi=300)
 
-# Control
+# --- CONTROL PLOT ---
 plt.figure(figsize=(5,3))
 plt.plot(time_log, u1_log, label="u1")
 plt.plot(time_log, u2_log, label="u2")
@@ -222,7 +240,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig("controls.png", dpi=300)
 
-# Distance
+# --- DISTANCE PLOT ---
 plt.figure(figsize=(5,3))
 plt.plot(time_log, dist12_log)
 plt.axhline(0.1, linestyle='--', label="Safe distance")
